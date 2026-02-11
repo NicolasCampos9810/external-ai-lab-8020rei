@@ -10,6 +10,7 @@ export default function RegisterForm() {
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,7 +25,7 @@ export default function RegisterForm() {
     }
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -37,6 +38,10 @@ export default function RegisterForm() {
     if (error) {
       setError(error.message)
       setLoading(false)
+    } else if (data.user && !data.session) {
+      // Email confirmation is enabled — user exists but no session yet
+      setSuccess('Check your email for a confirmation link, then sign in.')
+      setLoading(false)
     } else {
       router.push('/dashboard')
       router.refresh()
@@ -48,6 +53,11 @@ export default function RegisterForm() {
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
+        </div>
+      )}
+      {success && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          {success}
         </div>
       )}
       <div>

@@ -15,11 +15,19 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  // Profile may not exist yet if the trigger hasn't fired or the
+  // profiles table hasn't been created. Handle gracefully.
+  let profile = null
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    profile = data
+  } catch {
+    // profiles table may not exist yet — that's OK
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">

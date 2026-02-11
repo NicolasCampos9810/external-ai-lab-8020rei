@@ -15,11 +15,17 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  let profile = null
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    profile = data
+  } catch {
+    // profiles table may not exist yet
+  }
 
   if (profile?.role !== 'admin') {
     redirect('/dashboard')
