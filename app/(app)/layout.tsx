@@ -12,13 +12,28 @@ export default async function AppLayout({
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', user.id)
     .single()
 
-  if (!profile) redirect('/login')
+  // Auto-create profile if it doesn't exist (e.g. user existed before DB reset)
+  if (!profile) {
+    const { data: newProfile, error } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        email: user.email!,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+        avatar_url: user.user_metadata?.avatar_url || null,
+      })
+      .select()
+      .single()
+
+    if (error || !newProfile) redirect('/login')
+    profile = newProfile
+  }
 
   return (
     <div className="flex min-h-screen">

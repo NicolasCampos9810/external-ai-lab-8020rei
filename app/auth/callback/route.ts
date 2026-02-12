@@ -34,8 +34,24 @@ export async function GET(request: Request) {
       }
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error && data.user) {
+      // Ensure profile exists (handles users who existed before a DB reset)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', data.user.id)
+        .single()
+
+      if (!profile) {
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          email: data.user.email!,
+          full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || null,
+          avatar_url: data.user.user_metadata?.avatar_url || null,
+        })
+      }
+
       return response
     }
   }
