@@ -27,6 +27,11 @@ create policy "Users can update own profile"
   to authenticated
   using (auth.uid() = id);
 
+create policy "Users can insert own profile"
+  on public.profiles for insert
+  to authenticated
+  with check (auth.uid() = id);
+
 create policy "Admins can update any profile"
   on public.profiles for update
   to authenticated
