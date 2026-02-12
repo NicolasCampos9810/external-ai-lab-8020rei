@@ -13,12 +13,19 @@ export async function uploadMaterial(formData: FormData) {
 
   const title = formData.get('title') as string
   const description = formData.get('description') as string
-  const category = formData.get('category') as string
+  const categoriesRaw = formData.get('categories') as string
   const tagsRaw = formData.get('tags') as string
   const file = formData.get('file') as File
 
-  if (!title || !category || !file) {
-    return { error: 'Title, category, and file are required.' }
+  let categories: string[] = []
+  try {
+    categories = JSON.parse(categoriesRaw || '[]')
+  } catch {
+    return { error: 'Invalid categories format.' }
+  }
+
+  if (!title || categories.length === 0 || !file) {
+    return { error: 'Title, at least one category, and file are required.' }
   }
 
   const allowedTypes = [
@@ -65,7 +72,7 @@ export async function uploadMaterial(formData: FormData) {
       file_name: file.name,
       file_type: file.type,
       file_size: file.size,
-      category,
+      categories,
       tags,
       uploaded_by: user.id,
     })

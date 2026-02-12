@@ -25,7 +25,7 @@ export default async function LibraryPage({ searchParams }: Props) {
 
   // Category filter
   if (params.category && params.category !== 'all') {
-    query = query.eq('category', params.category)
+    query = query.contains('categories', [params.category])
   }
 
   // File type filter

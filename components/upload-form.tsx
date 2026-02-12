@@ -4,11 +4,22 @@ import { useState, useRef } from 'react'
 import { uploadMaterial } from '@/lib/actions/materials'
 import { CATEGORIES } from '@/lib/supabase/types'
 
+const UPLOAD_CRITERIA = [
+  { label: 'PDF or DOCX format', key: 'format' },
+  { label: 'File size under 50MB', key: 'size' },
+  { label: 'Title provided', key: 'title' },
+  { label: 'At least one category selected', key: 'category' },
+  { label: 'Description provided', key: 'description' },
+]
+
 export default function UploadForm() {
   const [dragOver, setDragOver] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   function handleDrop(e: React.DragEvent) {
@@ -41,14 +52,48 @@ export default function UploadForm() {
     setFile(f)
   }
 
+  function toggleCategory(cat: string) {
+    setSelectedCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    )
+  }
+
+  // Criteria check
+  const isValidFormat = file !== null
+  const isValidSize = file ? file.size <= 50 * 1024 * 1024 : false
+  const hasTitle = title.trim().length > 0
+  const hasCategory = selectedCategories.length > 0
+  const hasDescription = description.trim().length > 0
+
+  const criteriaStatus: Record<string, boolean> = {
+    format: isValidFormat,
+    size: isValidSize,
+    title: hasTitle,
+    category: hasCategory,
+    description: hasDescription,
+  }
+
+  const allRequiredMet = isValidFormat && isValidSize && hasTitle && hasCategory
+
   async function handleSubmit(formData: FormData) {
     if (!file) {
       setError('Please select a file.')
       return
     }
+    if (selectedCategories.length === 0) {
+      setError('Please select at least one category.')
+      return
+    }
+    if (!title.trim()) {
+      setError('Please enter a title.')
+      return
+    }
     setLoading(true)
     setError(null)
     formData.set('file', file)
+    formData.set('title', title)
+    formData.set('description', description)
+    formData.set('categories', JSON.stringify(selectedCategories))
     const result = await uploadMaterial(formData)
     if (result?.error) {
       setError(result.error)
@@ -65,6 +110,37 @@ export default function UploadForm() {
           {error}
         </div>
       )}
+
+      {/* Upload Criteria Checklist */}
+      <div className="bg-gray-50 rounded-xl border border-border p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Upload Criteria</h3>
+        <div className="space-y-2">
+          {UPLOAD_CRITERIA.map(criteria => {
+            const met = criteriaStatus[criteria.key]
+            return (
+              <div key={criteria.key} className="flex items-center gap-2.5">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  met ? 'bg-green-100' : 'bg-gray-200'
+                }`}>
+                  {met ? (
+                    <svg className="w-3 h-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <div className="w-2 h-2 rounded-full bg-gray-400" />
+                  )}
+                </div>
+                <span className={`text-sm ${met ? 'text-green-700 font-medium' : 'text-gray-500'}`}>
+                  {criteria.label}
+                  {criteria.key === 'description' && (
+                    <span className="text-gray-400 font-normal"> (recommended)</span>
+                  )}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* File drop zone */}
       <div
@@ -115,6 +191,8 @@ export default function UploadForm() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
         <input
           name="title"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
           required
           placeholder="e.g. Prompt Engineering Best Practices"
           className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -126,25 +204,48 @@ export default function UploadForm() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
         <textarea
           name="description"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
           rows={3}
           placeholder="Brief description of the material content..."
           className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
         />
       </div>
 
-      {/* Category */}
+      {/* Categories - Multi-select */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-        <select
-          name="category"
-          required
-          className="w-full px-4 py-2.5 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-        >
-          <option value="">Select a category</option>
-          {CATEGORIES.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Categories * <span className="text-gray-400 font-normal">(select one or more)</span>
+        </label>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {CATEGORIES.map(cat => {
+            const selected = selectedCategories.includes(cat)
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => toggleCategory(cat)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                  selected
+                    ? 'bg-primary text-white border-primary shadow-sm'
+                    : 'bg-white text-gray-600 border-border hover:border-primary/50 hover:text-primary'
+                }`}
+              >
+                {selected && (
+                  <svg className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {cat}
+              </button>
+            )
+          })}
+        </div>
+        {selectedCategories.length > 0 && (
+          <p className="text-xs text-muted mt-2">
+            {selectedCategories.length} {selectedCategories.length === 1 ? 'category' : 'categories'} selected
+          </p>
+        )}
       </div>
 
       {/* Tags */}
@@ -160,11 +261,17 @@ export default function UploadForm() {
       {/* Submit */}
       <button
         type="submit"
-        disabled={loading || !file}
+        disabled={loading || !allRequiredMet}
         className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? 'Uploading...' : 'Upload Material'}
       </button>
+
+      {!allRequiredMet && (
+        <p className="text-xs text-center text-muted">
+          Please complete all required criteria above to enable upload
+        </p>
+      )}
     </form>
   )
 }

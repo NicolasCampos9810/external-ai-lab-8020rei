@@ -47,7 +47,7 @@ create table if not exists public.materials (
   file_name text not null,
   file_type text not null,
   file_size bigint not null,
-  category text not null,
+  categories text[] not null default '{}',
   tags text[] default '{}',
   uploaded_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -167,6 +167,14 @@ create policy "Admins can delete files"
     bucket_id = 'materials' and
     exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
   );
+
+-- 7. MIGRATE: category (text) -> categories (text[])
+-- ============================================
+-- Run this if you already have the old schema with 'category text' column:
+-- ALTER TABLE public.materials ADD COLUMN categories text[] NOT NULL DEFAULT '{}';
+-- UPDATE public.materials SET categories = ARRAY[category] WHERE category IS NOT NULL;
+-- ALTER TABLE public.materials DROP COLUMN category;
+-- Then recreate the material_scores view above.
 
 -- ============================================
 -- DONE! After running this:

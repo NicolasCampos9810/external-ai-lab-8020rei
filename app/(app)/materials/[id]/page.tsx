@@ -65,15 +65,17 @@ export default async function MaterialDetailPage({ params }: Props) {
         <div className="lg:col-span-2 space-y-6">
           {/* Material info */}
           <div className="bg-card rounded-xl border border-border p-6">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
               <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
                 fileIcon === 'PDF' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
               }`}>
                 {fileIcon}
               </span>
-              <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                {material.category}
-              </span>
+              {(material.categories || []).map((cat: string) => (
+                <span key={cat} className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                  {cat}
+                </span>
+              ))}
             </div>
 
             <h1 className="text-2xl font-bold text-gray-900">{material.title}</h1>
