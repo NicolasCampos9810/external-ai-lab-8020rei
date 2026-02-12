@@ -19,6 +19,9 @@ export interface Material {
   file_type: string
   file_size: number
   categories: string[]
+  guidelines: string | null
+  columns: string[] | null
+  headlines: string[] | null
   tags: string[]
   uploaded_by: string | null
   created_at: string
