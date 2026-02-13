@@ -8,6 +8,7 @@ export interface Profile {
   role: UserRole
   created_at: string
   updated_at: string
+  last_login: string | null
 }
 
 export interface Material {
@@ -20,6 +21,9 @@ export interface Material {
   week: string | null
   estimated_time: string | null
   initial_score: number | null
+  initial_quality: number | null
+  initial_relevance: number | null
+  is_essential: boolean
   file_url: string | null
   file_name: string | null
   file_type: string | null
@@ -39,8 +43,17 @@ export interface Vote {
   user_id: string
   quality_score: number
   relevance_score: number
+  comment: string | null
   created_at: string
   updated_at: string
+}
+
+export interface VoteReaction {
+  id: string
+  vote_id: string
+  user_id: string
+  reaction: 'like' | 'dislike'
+  created_at: string
 }
 
 export interface MaterialWithScores extends Material {
@@ -86,5 +99,7 @@ export const WEEKS = [
   'Week 2',
   'Week 3',
   'Week 4',
+  'Week 5',
+  'Week 6',
   'Optional',
 ] as const

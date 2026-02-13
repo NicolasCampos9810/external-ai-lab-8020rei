@@ -11,8 +11,16 @@ export interface ParsedMaterial {
   content_type?: string
   categories: string[]
   initial_score?: number
+  initial_quality?: number
+  initial_relevance?: number
+  is_essential: boolean
   week?: string
   estimated_time?: string
+}
+
+// Normalize URL for comparison (remove trailing slash, lowercase, trim)
+function normalizeUrl(url: string): string {
+  return url.trim().toLowerCase().replace(/\/$/, '')
 }
 
 export async function uploadMaterials(materials: ParsedMaterial[]) {
@@ -34,17 +42,59 @@ export async function uploadMaterials(materials: ParsedMaterial[]) {
     }
   }
 
-  const rows = materials.map(m => ({
-    title: m.title.trim(),
-    link: m.link?.trim() || null,
-    description: m.description?.trim() || null,
-    content_type: m.content_type?.trim() || null,
-    categories: m.categories.length > 0 ? m.categories : [],
-    initial_score: m.initial_score ?? null,
-    week: m.week?.trim() || null,
-    estimated_time: m.estimated_time?.trim() || null,
-    uploaded_by: user.id,
-  }))
+  // Check for duplicate URLs in the database (with normalization)
+  const urlsToCheck = materials
+    .map(m => m.link?.trim())
+    .filter((url): url is string => !!url)
+
+  let existingUrls = new Set<string>()
+  if (urlsToCheck.length > 0) {
+    // Get ALL existing links from database to check normalized versions
+    const { data: existingMaterials } = await supabase
+      .from('materials')
+      .select('link')
+      .not('link', 'is', null)
+
+    if (existingMaterials) {
+      // Normalize and store all existing URLs
+      existingUrls = new Set(
+        existingMaterials
+          .map(m => m.link)
+          .filter(Boolean)
+          .map(normalizeUrl)
+      )
+    }
+  }
+
+  // Prepare rows, filtering out duplicates (using normalized comparison)
+  const rows = materials
+    .filter(m => {
+      // Skip if URL already exists (after normalization)
+      if (m.link && existingUrls.has(normalizeUrl(m.link))) {
+        return false
+      }
+      return true
+    })
+    .map(m => ({
+      title: m.title.trim(),
+      link: m.link?.trim() || null,
+      description: m.description?.trim() || null,
+      content_type: m.content_type?.trim() || null,
+      categories: m.categories.length > 0 ? m.categories : [],
+      initial_score: m.initial_score ?? null,
+      initial_quality: m.initial_quality ?? null,
+      initial_relevance: m.initial_relevance ?? null,
+      is_essential: m.is_essential ?? false,
+      week: m.week?.trim() || null,
+      estimated_time: m.estimated_time?.trim() || null,
+      uploaded_by: user.id,
+    }))
+
+  const duplicateCount = materials.length - rows.length
+
+  if (rows.length === 0) {
+    return { error: `All ${materials.length} materials were duplicates (URLs already exist in the database).` }
+  }
 
   // Batch insert in groups of 50
   const batchSize = 50
@@ -65,7 +115,14 @@ export async function uploadMaterials(materials: ParsedMaterial[]) {
   revalidatePath('/library')
   revalidatePath('/dashboard')
 
-  return { success: true, count: totalInserted }
+  return {
+    success: true,
+    count: totalInserted,
+    duplicates: duplicateCount,
+    message: duplicateCount > 0
+      ? `Uploaded ${totalInserted} materials. Skipped ${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} (URL already exists).`
+      : undefined
+  }
 }
 
 export async function deleteMaterial(materialId: string) {

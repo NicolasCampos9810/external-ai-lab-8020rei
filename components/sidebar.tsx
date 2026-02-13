@@ -10,6 +10,7 @@ import type { Profile } from '@/lib/supabase/types'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
   { href: '/library', label: 'Library', icon: LibraryIcon },
+  { href: '/weekly', label: 'Weekly Training', icon: WeeklyIcon },
   { href: '/upload', label: 'Upload', icon: UploadIcon },
 ]
 
@@ -61,9 +62,9 @@ export default function Sidebar({ profile }: { profile: Profile }) {
 
       {/* Sidebar */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-40
-        w-64 bg-sidebar min-h-screen flex flex-col
-        transform transition-transform duration-200 ease-in-out
+        fixed inset-y-0 left-0 z-40
+        w-64 bg-sidebar min-h-screen flex flex-col overflow-y-auto
+        transform transition-transform duration-200 ease-in-out lg:transform-none
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Header */}
@@ -105,7 +106,11 @@ export default function Sidebar({ profile }: { profile: Profile }) {
 
         {/* Profile / Sign Out */}
         <div className="p-3 border-t border-white/10">
-          <div className="flex items-center gap-3 px-3 py-2">
+          <Link
+            href="/admin"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-hover transition-colors"
+          >
             <div className="w-8 h-8 rounded-full bg-primary-light flex items-center justify-center text-white text-sm font-medium">
               {profile.full_name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
             </div>
@@ -115,7 +120,7 @@ export default function Sidebar({ profile }: { profile: Profile }) {
               </p>
               <p className="text-gray-400 text-xs capitalize">{profile.role}</p>
             </div>
-          </div>
+          </Link>
           <button
             onClick={handleSignOut}
             className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:bg-sidebar-hover hover:text-white transition-colors"
@@ -149,6 +154,14 @@ function UploadIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+    </svg>
+  )
+}
+
+function WeeklyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   )
 }

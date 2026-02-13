@@ -15,6 +15,8 @@ function normalizeWeek(raw: string): string {
   if (s.includes('2') || s.includes('second') || s.includes('two')) return 'Week 2'
   if (s.includes('3') || s.includes('third') || s.includes('three')) return 'Week 3'
   if (s.includes('4') || s.includes('fourth') || s.includes('four')) return 'Week 4'
+  if (s.includes('5') || s.includes('fifth') || s.includes('five')) return 'Week 5'
+  if (s.includes('6') || s.includes('sixth') || s.includes('six')) return 'Week 6'
   // If it already says "Week X", return as-is
   if (s.startsWith('week')) return raw.trim()
   return raw.trim()
@@ -42,7 +44,10 @@ const MATERIAL_FIELDS = [
   { key: 'description', label: 'Description', required: true, keywords: ['description', 'desc', 'small description', 'summary', 'about'] },
   { key: 'content_type', label: 'Content Type', required: false, keywords: ['content type', 'type', 'format', 'content_type', 'contenttype'] },
   { key: 'categories', label: 'Category', required: true, keywords: ['category', 'categories', 'topic', 'topics'] },
-  { key: 'score', label: 'Score', required: false, keywords: ['score', 'rating', 'average', 'avg', 'quality'] },
+  { key: 'quality', label: 'Quality Score', required: false, keywords: ['quality', 'quality score'] },
+  { key: 'relevance', label: 'Relevance Score', required: false, keywords: ['relevance', 'relevance score'] },
+  { key: 'score', label: 'Average Score', required: false, keywords: ['score', 'rating', 'average', 'avg', 'average score', 'imported score', 'total score'] },
+  { key: 'essential', label: 'Essential / Core Resource', required: false, keywords: ['essential', 'core resource', 'core', 'must read', 'must-read', 'required', 'priority', 'highly valuable core'] },
   { key: 'week', label: 'Week', required: false, keywords: ['week', 'stage', 'course creation', 'module', 'phase'] },
   { key: 'estimated_time', label: 'Estimated Time', required: false, keywords: ['estimated time', 'time', 'duration', 'estimated_time', 'time investment'] },
 ] as const
@@ -94,15 +99,44 @@ function parseRowsToMaterials(
         ? categoryRaw.split(',').map(c => c.trim()).filter(Boolean)
         : []
 
-      // Parse score as number
-      const scoreRaw = get('score')
+      // Parse scores - prioritize quality + relevance, fallback to average score
       let initial_score: number | undefined
-      if (scoreRaw) {
+      let initial_quality: number | undefined
+      let initial_relevance: number | undefined
+
+      const qualityRaw = get('quality')
+      const relevanceRaw = get('relevance')
+      const scoreRaw = get('score')
+
+      // If both quality and relevance are provided, store them separately
+      if (qualityRaw && relevanceRaw) {
+        const quality = parseFloat(qualityRaw)
+        const relevance = parseFloat(relevanceRaw)
+        if (!isNaN(quality) && !isNaN(relevance) && quality >= 0 && quality <= 5 && relevance >= 0 && relevance <= 5) {
+          initial_quality = Math.round(quality * 10) / 10
+          initial_relevance = Math.round(relevance * 10) / 10
+          initial_score = Math.round(((quality + relevance) / 2) * 10) / 10
+        }
+      }
+      // Otherwise, use the average score column if provided
+      else if (scoreRaw) {
         const parsed = parseFloat(scoreRaw)
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 5) {
           initial_score = Math.round(parsed * 10) / 10
         }
       }
+
+      // Parse essential field - recognize "yes", "true", "1", "highly valuable core", etc.
+      const essentialRaw = get('essential').toLowerCase()
+      const is_essential = essentialRaw === 'yes' ||
+                          essentialRaw === 'true' ||
+                          essentialRaw === '1' ||
+                          essentialRaw.includes('highly valuable') ||
+                          essentialRaw.includes('core') ||
+                          essentialRaw.includes('essential') ||
+                          essentialRaw.includes('must') ||
+                          essentialRaw.includes('required') ||
+                          essentialRaw.includes('priority')
 
       return {
         title,
@@ -111,6 +145,9 @@ function parseRowsToMaterials(
         content_type: get('content_type') || undefined,
         categories,
         initial_score,
+        initial_quality,
+        initial_relevance,
+        is_essential,
         week: normalizeWeek(get('week')) || undefined,
         estimated_time: get('estimated_time') || undefined,
       } as ParsedMaterial
@@ -126,7 +163,7 @@ export default function UploadForm() {
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState<{ count: number } | null>(null)
+  const [success, setSuccess] = useState<{ count: number; duplicates?: number; message?: string } | null>(null)
 
   // Parsed file data
   const [headers, setHeaders] = useState<string[]>([])
@@ -235,7 +272,11 @@ export default function UploadForm() {
       setError(result.error)
       setLoading(false)
     } else if (result?.success) {
-      setSuccess({ count: result.count })
+      setSuccess({
+        count: result.count,
+        duplicates: result.duplicates,
+        message: result.message
+      })
       setLoading(false)
       setFile(null)
       setHeaders([])
@@ -277,7 +318,12 @@ export default function UploadForm() {
 
       {success && (
         <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-          <p className="font-medium">Successfully uploaded {success.count} materials!</p>
+          <p className="font-medium">Successfully uploaded {success.count} material{success.count === 1 ? '' : 's'}!</p>
+          {success.duplicates && success.duplicates > 0 && (
+            <p className="text-sm mt-1 text-amber-600">
+              ⚠️ {success.duplicates} duplicate{success.duplicates === 1 ? '' : 's'} skipped (URL already exists)
+            </p>
+          )}
           <p className="text-sm mt-1">Redirecting to library...</p>
         </div>
       )}
@@ -484,7 +530,7 @@ export default function UploadForm() {
               <span className="font-medium text-gray-600">Required:</span> Name, Link, Description, Category
             </p>
             <p className="text-xs text-muted mt-1">
-              <span className="font-medium text-gray-600">Optional:</span> Content Type ({CONTENT_TYPES.join(', ')}), Score, Week, Estimated Time
+              <span className="font-medium text-gray-600">Optional:</span> Content Type ({CONTENT_TYPES.join(', ')}), Quality Score + Relevance Score (or Average Score), Week, Estimated Time
             </p>
           </div>
         </div>
