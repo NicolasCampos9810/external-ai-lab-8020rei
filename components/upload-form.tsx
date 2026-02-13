@@ -47,6 +47,7 @@ const MATERIAL_FIELDS = [
   { key: 'quality', label: 'Quality Score', required: false, keywords: ['quality', 'quality score'] },
   { key: 'relevance', label: 'Relevance Score', required: false, keywords: ['relevance', 'relevance score'] },
   { key: 'score', label: 'Average Score', required: false, keywords: ['score', 'rating', 'average', 'avg', 'average score', 'imported score', 'total score'] },
+  { key: 'essential', label: 'Essential / Core Resource', required: false, keywords: ['essential', 'core resource', 'core', 'must read', 'must-read', 'required', 'priority', 'highly valuable core'] },
   { key: 'week', label: 'Week', required: false, keywords: ['week', 'stage', 'course creation', 'module', 'phase'] },
   { key: 'estimated_time', label: 'Estimated Time', required: false, keywords: ['estimated time', 'time', 'duration', 'estimated_time', 'time investment'] },
 ] as const
@@ -125,6 +126,18 @@ function parseRowsToMaterials(
         }
       }
 
+      // Parse essential field - recognize "yes", "true", "1", "highly valuable core", etc.
+      const essentialRaw = get('essential').toLowerCase()
+      const is_essential = essentialRaw === 'yes' ||
+                          essentialRaw === 'true' ||
+                          essentialRaw === '1' ||
+                          essentialRaw.includes('highly valuable') ||
+                          essentialRaw.includes('core') ||
+                          essentialRaw.includes('essential') ||
+                          essentialRaw.includes('must') ||
+                          essentialRaw.includes('required') ||
+                          essentialRaw.includes('priority')
+
       return {
         title,
         link: link || undefined,
@@ -134,6 +147,7 @@ function parseRowsToMaterials(
         initial_score,
         initial_quality,
         initial_relevance,
+        is_essential,
         week: normalizeWeek(get('week')) || undefined,
         estimated_time: get('estimated_time') || undefined,
       } as ParsedMaterial
