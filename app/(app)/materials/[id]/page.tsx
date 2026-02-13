@@ -17,12 +17,20 @@ const CONTENT_TYPE_COLORS: Record<string, string> = {
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string; week?: string }>
 }
 
-export default async function MaterialDetailPage({ params }: Props) {
+export default async function MaterialDetailPage({ params, searchParams }: Props) {
   const { id } = await params
+  const search = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  // Determine back link based on referrer
+  const backHref = search.from === 'weekly' && search.week
+    ? `/weekly?week=${encodeURIComponent(search.week)}`
+    : '/library'
+  const backLabel = search.from === 'weekly' ? 'Back to Weekly Training' : 'Back to Library'
 
   // Get material with scores
   const { data: material } = await supabase
@@ -96,11 +104,11 @@ export default async function MaterialDetailPage({ params }: Props) {
   return (
     <div className="max-w-4xl">
       {/* Back link */}
-      <Link href="/library" className="inline-flex items-center gap-1 text-sm text-muted hover:text-primary mb-6">
+      <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-muted hover:text-primary mb-6">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back to Library
+        {backLabel}
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
