@@ -6,6 +6,20 @@ import * as XLSX from 'xlsx'
 import { uploadMaterials, type ParsedMaterial } from '@/lib/actions/materials'
 import { CONTENT_TYPES } from '@/lib/supabase/types'
 
+// Normalize week/stage values to "Week 1", "Week 2", etc.
+function normalizeWeek(raw: string): string {
+  const s = raw.toLowerCase().trim()
+  if (!s) return ''
+  if (s.includes('optional') || s.includes('extra') || s.includes('bonus')) return 'Optional'
+  if (s.includes('1') || s.includes('first') || s.includes('one')) return 'Week 1'
+  if (s.includes('2') || s.includes('second') || s.includes('two')) return 'Week 2'
+  if (s.includes('3') || s.includes('third') || s.includes('three')) return 'Week 3'
+  if (s.includes('4') || s.includes('fourth') || s.includes('four')) return 'Week 4'
+  // If it already says "Week X", return as-is
+  if (s.startsWith('week')) return raw.trim()
+  return raw.trim()
+}
+
 // Fix encoding artifacts from files saved with mixed encodings
 function cleanText(val: unknown): string {
   if (val == null) return ''
@@ -97,7 +111,7 @@ function parseRowsToMaterials(
         content_type: get('content_type') || undefined,
         categories,
         initial_score,
-        week: get('week') || undefined,
+        week: normalizeWeek(get('week')) || undefined,
         estimated_time: get('estimated_time') || undefined,
       } as ParsedMaterial
     })
