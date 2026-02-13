@@ -48,10 +48,10 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
       )}
       <Link
         href={`/materials/${material.id}`}
-        className="flex-1 block bg-card rounded-xl border border-border p-5 hover:shadow-md hover:border-primary/30 transition-all"
+        className="flex-1 block bg-card rounded-xl border border-border p-4 md:p-5 hover:shadow-md hover:border-primary/30 transition-all"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-3">
+          <div className="flex-1 min-w-0 w-full">
             {/* Badges row */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {material.content_type && (
@@ -93,7 +93,7 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
           </div>
 
           {/* Score badge */}
-          <div className="flex-shrink-0 text-center">
+          <div className="flex sm:flex-col items-center gap-2 sm:gap-0 sm:flex-shrink-0 sm:text-center">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold ${
               !displayScore
                 ? 'bg-gray-100 text-gray-400'
@@ -105,7 +105,7 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
             }`}>
               {displayScore || '—'}
             </div>
-            <p className="text-xs text-muted mt-1">
+            <p className="text-xs text-muted sm:mt-1">
               {scoreSource === 'votes'
                 ? `${material.vote_count} ${material.vote_count === 1 ? 'vote' : 'votes'}`
                 : scoreSource === 'imported'
@@ -116,8 +116,8 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-          <div className="flex items-center gap-3 text-xs text-muted">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-3 pt-3 border-t border-border gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
             {material.estimated_time && (
               <span className="inline-flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -141,7 +141,7 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
               </>
             )}
           </div>
-          <span className="text-xs text-muted">
+          <span className="text-xs text-muted whitespace-nowrap">
             {new Date(material.created_at).toLocaleDateString()}
           </span>
         </div>
