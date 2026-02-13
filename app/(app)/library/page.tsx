@@ -12,6 +12,7 @@ interface Props {
     sort?: string
     date_filter?: string
     score_filter?: string
+    essential_filter?: string
   }>
 }
 
@@ -109,19 +110,25 @@ export default async function LibraryPage({ searchParams }: Props) {
     }
   }
 
+  // Essential filter
+  if (params.essential_filter && params.essential_filter !== 'all') {
+    if (params.essential_filter === 'essential') {
+      query = query.eq('is_essential', true)
+    } else if (params.essential_filter === 'non_essential') {
+      query = query.eq('is_essential', false)
+    }
+  }
+
   // Sort
   switch (params.sort) {
+    case 'essential_first':
+      query = query.order('is_essential', { ascending: false }).order('avg_overall', { ascending: false, nullsFirst: false })
+      break
     case 'top_rated':
       query = query.order('avg_overall', { ascending: false, nullsFirst: false })
       break
     case 'most_reviewed':
       query = query.order('vote_count', { ascending: false })
-      break
-    case 'quality':
-      query = query.order('avg_quality', { ascending: false, nullsFirst: false })
-      break
-    case 'relevance':
-      query = query.order('avg_relevance', { ascending: false, nullsFirst: false })
       break
     case 'oldest':
       query = query.order('created_at', { ascending: true })
@@ -169,6 +176,7 @@ export default async function LibraryPage({ searchParams }: Props) {
         currentSort={params.sort || 'newest'}
         currentDateFilter={params.date_filter || 'all'}
         currentScoreFilter={params.score_filter || 'all'}
+        currentEssentialFilter={params.essential_filter || 'all'}
       />
 
       {materials && materials.length > 0 ? (

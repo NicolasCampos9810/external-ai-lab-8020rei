@@ -66,14 +66,6 @@ export default async function DashboardPage() {
         .in('id', recentMaterialIds)
     : { data: null }
 
-  // Get needs reviews (materials with 0-2 votes, recently uploaded)
-  const { data: needsReviews } = await supabase
-    .from('material_scores')
-    .select('*')
-    .lte('vote_count', 2)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
   // Get top rated all time
   const { data: topRated } = await supabase
     .from('material_scores')
@@ -192,120 +184,90 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Content - 2 Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column */}
-        <div className="space-y-6">
-          {/* Trending This Week */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">🔥 Trending This Week</h2>
-                <p className="text-xs text-muted">Most voted materials in the last 7 days</p>
-              </div>
-              <Link href="/library?sort=most_reviewed&date_filter=this_week" className="text-xs text-primary hover:text-primary-dark font-medium">
-                View all →
-              </Link>
+      {/* Main Content Sections */}
+      <div className="space-y-6">
+        {/* Trending This Week */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">🔥 Trending This Week</h2>
+              <p className="text-xs text-muted">Most voted materials in the last 7 days</p>
             </div>
-            {trendingSorted && trendingSorted.length > 0 ? (
-              <div className="space-y-2">
-                {trendingSorted.slice(0, 3).map((material, idx) => (
-                  <div key={material.id} className="relative">
-                    <div className="absolute -left-3 top-5 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold z-10">
-                      {idx + 1}
-                    </div>
-                    <MaterialCard material={material} />
+            <Link href="/library?sort=most_reviewed&date_filter=this_week" className="text-xs text-primary hover:text-primary-dark font-medium">
+              View all →
+            </Link>
+          </div>
+          {trendingSorted && trendingSorted.length > 0 ? (
+            <div className="space-y-3">
+              {trendingSorted.slice(0, 5).map((material, idx) => (
+                <div key={material.id} className="relative">
+                  <div className="absolute -left-3 top-5 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold z-10">
+                    {idx + 1}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-6 text-center">
-                <p className="text-sm text-muted">No activity this week yet. Start reviewing!</p>
-              </div>
-            )}
-          </section>
+                  <MaterialCard material={material} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
+              <p className="text-sm text-muted">No activity this week yet. Start reviewing!</p>
+            </div>
+          )}
+        </section>
 
-          {/* Needs Reviews */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">📝 Needs Your Review</h2>
-                <p className="text-xs text-muted">New materials waiting for feedback</p>
-              </div>
-              <Link href="/library?score_filter=none" className="text-xs text-primary hover:text-primary-dark font-medium">
-                View all →
+        {/* Recently Active */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">💬 Recently Active</h2>
+              <p className="text-xs text-muted">Materials with recent reviews (last 3 days)</p>
+            </div>
+            <Link href="/library?sort=newest" className="text-xs text-primary hover:text-primary-dark font-medium">
+              View all →
+            </Link>
+          </div>
+          {recentlyActive && recentlyActive.length > 0 ? (
+            <div className="space-y-3">
+              {recentlyActive.slice(0, 5).map(material => (
+                <MaterialCard key={material.id} material={material} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
+              <p className="text-sm text-muted">No recent activity.</p>
+            </div>
+          )}
+        </section>
+
+        {/* Top Rated All Time */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">⭐ Top Rated All Time</h2>
+              <p className="text-xs text-muted">The highest quality materials overall</p>
+            </div>
+            <Link href="/library?sort=top_rated" className="text-xs text-primary hover:text-primary-dark font-medium">
+              View all →
+            </Link>
+          </div>
+          {topRated && topRated.length > 0 ? (
+            <div className="space-y-3">
+              {topRated.slice(0, 5).map(material => (
+                <MaterialCard key={material.id} material={material} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
+              <p className="text-sm text-muted">No rated materials yet.</p>
+              <Link
+                href="/library"
+                className="inline-block mt-2 text-xs text-primary hover:text-primary-dark font-medium"
+              >
+                Start reviewing →
               </Link>
             </div>
-            {needsReviews && needsReviews.length > 0 ? (
-              <div className="space-y-2">
-                {needsReviews.slice(0, 3).map(material => (
-                  <MaterialCard key={material.id} material={material} />
-                ))}
-              </div>
-            ) : (
-              <div className="bg-green-50 rounded-lg border-2 border-dashed border-green-200 p-6 text-center">
-                <p className="text-sm text-green-700">All materials have been reviewed! 🎉</p>
-              </div>
-            )}
-          </section>
-        </div>
-
-        {/* Right Column */}
-        <div className="space-y-6">
-          {/* Recently Active */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">💬 Recently Active</h2>
-                <p className="text-xs text-muted">Materials with recent reviews (last 3 days)</p>
-              </div>
-              <Link href="/library?sort=newest" className="text-xs text-primary hover:text-primary-dark font-medium">
-                View all →
-              </Link>
-            </div>
-            {recentlyActive && recentlyActive.length > 0 ? (
-              <div className="space-y-2">
-                {recentlyActive.slice(0, 3).map(material => (
-                  <MaterialCard key={material.id} material={material} />
-                ))}
-              </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-6 text-center">
-                <p className="text-sm text-muted">No recent activity.</p>
-              </div>
-            )}
-          </section>
-
-          {/* Top Rated All Time */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">⭐ Top Rated All Time</h2>
-                <p className="text-xs text-muted">The highest quality materials overall</p>
-              </div>
-              <Link href="/library?sort=top_rated" className="text-xs text-primary hover:text-primary-dark font-medium">
-                View all →
-              </Link>
-            </div>
-            {topRated && topRated.length > 0 ? (
-              <div className="space-y-2">
-                {topRated.slice(0, 3).map(material => (
-                  <MaterialCard key={material.id} material={material} />
-                ))}
-              </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-6 text-center">
-                <p className="text-sm text-muted">No rated materials yet.</p>
-                <Link
-                  href="/library"
-                  className="inline-block mt-2 text-xs text-primary hover:text-primary-dark font-medium"
-                >
-                  Start reviewing →
-                </Link>
-              </div>
-            )}
-          </section>
-        </div>
+          )}
+        </section>
       </div>
 
       {/* Quick Actions */}

@@ -23,6 +23,7 @@ export interface Material {
   initial_score: number | null
   initial_quality: number | null
   initial_relevance: number | null
+  is_essential: boolean
   file_url: string | null
   file_name: string | null
   file_type: string | null

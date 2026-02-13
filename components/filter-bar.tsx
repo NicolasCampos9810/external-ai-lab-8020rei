@@ -13,6 +13,7 @@ interface FilterBarProps {
   currentSort: string
   currentDateFilter: string
   currentScoreFilter: string
+  currentEssentialFilter: string
 }
 
 export default function FilterBar({
@@ -25,6 +26,7 @@ export default function FilterBar({
   currentSort,
   currentDateFilter,
   currentScoreFilter,
+  currentEssentialFilter,
 }: FilterBarProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -50,7 +52,7 @@ export default function FilterBar({
     router.push('/library')
   }
 
-  const hasActiveFilters = currentSearch || currentCategory !== 'all' || currentContentType !== 'all' || currentWeek !== 'all' || currentSort !== 'newest' || currentDateFilter !== 'all' || currentScoreFilter !== 'all'
+  const hasActiveFilters = currentSearch || currentCategory !== 'all' || currentContentType !== 'all' || currentWeek !== 'all' || currentSort !== 'newest' || currentDateFilter !== 'all' || currentScoreFilter !== 'all' || currentEssentialFilter !== 'all'
 
   return (
     <div className="bg-card rounded-xl border border-border p-4">
@@ -135,7 +137,7 @@ export default function FilterBar({
           </select>
         </div>
 
-        {/* Row 3: Score Filter & Sort */}
+        {/* Row 3: Score, Essential Filter & Sort */}
         <div className="flex flex-col sm:flex-row gap-2">
           {/* Score filter */}
           <select
@@ -152,6 +154,17 @@ export default function FilterBar({
             <option value="none">No Rating</option>
           </select>
 
+          {/* Essential filter */}
+          <select
+            value={currentEssentialFilter}
+            onChange={e => updateParams('essential_filter', e.target.value)}
+            className="flex-1 px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          >
+            <option value="all">All Materials</option>
+            <option value="essential">💎 Essential Only</option>
+            <option value="non_essential">Regular Only</option>
+          </select>
+
           {/* Sort */}
           <select
             value={currentSort}
@@ -160,10 +173,9 @@ export default function FilterBar({
           >
             <option value="newest">📅 Newest First</option>
             <option value="oldest">📅 Oldest First</option>
+            <option value="essential_first">💎 Essential First</option>
             <option value="top_rated">⭐ Top Rated</option>
             <option value="most_reviewed">💬 Most Reviewed</option>
-            <option value="quality">✨ Best Quality</option>
-            <option value="relevance">🎯 Most Relevant</option>
           </select>
 
           {/* Clear All */}
