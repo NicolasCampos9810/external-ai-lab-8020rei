@@ -52,6 +52,24 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         <p className="text-muted mt-1">Materials organized by training week, sorted by relevance</p>
       </div>
 
+      {/* Info Box - How it works */}
+      <div className="mb-6 bg-blue-50 rounded-xl border border-blue-200 p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-blue-900">How it works</h3>
+            <p className="text-sm text-blue-700 mt-1">
+              Materials are organized by training week and sorted by <strong>relevance score</strong> - showing you the most applicable content first.
+              The ranking helps you prioritize your learning for each week.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Week Tabs */}
       <div className="bg-card rounded-xl border border-border p-2 mb-6">
         <div className="flex flex-wrap gap-2">
@@ -111,7 +129,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
               <div className="absolute -left-3 top-5 w-7 h-7 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold z-10 shadow-md">
                 #{idx + 1}
               </div>
-              <MaterialCard material={material} />
+              <MaterialCard material={material} from="weekly" week={currentWeek} />
             </div>
           ))}
         </div>
@@ -133,24 +151,6 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
           )}
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="mt-8 bg-blue-50 rounded-xl border border-blue-200 p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg className="w-6 h-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-blue-900">How it works</h3>
-            <p className="text-sm text-blue-700 mt-1">
-              Materials are organized by training week and sorted by <strong>relevance score</strong> - showing you the most applicable content first.
-              The ranking helps you prioritize your learning for each week.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

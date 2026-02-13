@@ -17,9 +17,11 @@ interface MaterialCardProps {
   selectable?: boolean
   selected?: boolean
   onToggle?: (id: string) => void
+  from?: 'library' | 'weekly' | 'dashboard'
+  week?: string
 }
 
-export default function MaterialCard({ material, selectable, selected, onToggle }: MaterialCardProps) {
+export default function MaterialCard({ material, selectable, selected, onToggle, from, week }: MaterialCardProps) {
   // Use voting score if votes exist, otherwise fall back to initial_score
   const displayScore = material.vote_count > 0
     ? ((material.avg_quality + material.avg_relevance) / 2).toFixed(1)
@@ -35,6 +37,11 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
       : null
 
   const categories = material.categories || []
+
+  // Construct the link with query parameters for proper back navigation
+  const materialLink = `/materials/${material.id}${
+    from ? `?from=${from}${week ? `&week=${encodeURIComponent(week)}` : ''}` : ''
+  }`
 
   return (
     <div className="flex items-start gap-3 mb-4">
@@ -52,7 +59,7 @@ export default function MaterialCard({ material, selectable, selected, onToggle 
         </label>
       )}
       <Link
-        href={`/materials/${material.id}`}
+        href={materialLink}
         className={`flex-1 block rounded-xl border p-6 hover:shadow-lg transition-all ${
           material.is_essential
             ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-400'
