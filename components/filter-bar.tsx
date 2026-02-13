@@ -41,6 +41,13 @@ export default function FilterBar({
     updateParams('search', search)
   }
 
+  function clearAll() {
+    setSearch('')
+    router.push('/library')
+  }
+
+  const hasActiveFilters = currentSearch || currentCategory !== 'all' || currentContentType !== 'all' || currentWeek !== 'all' || currentSort !== 'newest'
+
   return (
     <div className="bg-card rounded-xl border border-border p-4">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -109,6 +116,16 @@ export default function FilterBar({
           <option value="top_rated">Top Rated</option>
           <option value="most_reviewed">Most Reviewed</option>
         </select>
+
+        {/* Clear All */}
+        {hasActiveFilters && (
+          <button
+            onClick={clearAll}
+            className="px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg font-medium transition-colors whitespace-nowrap"
+          >
+            Clear All
+          </button>
+        )}
       </div>
     </div>
   )
