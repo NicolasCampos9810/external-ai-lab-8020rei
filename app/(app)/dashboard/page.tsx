@@ -215,30 +215,6 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        {/* Recently Active */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">💬 Recently Active</h2>
-              <p className="text-xs text-muted">Materials with recent reviews (last 3 days)</p>
-            </div>
-            <Link href="/library?sort=newest" className="text-xs text-primary hover:text-primary-dark font-medium">
-              View all →
-            </Link>
-          </div>
-          {recentlyActive && recentlyActive.length > 0 ? (
-            <div className="space-y-3">
-              {recentlyActive.slice(0, 5).map(material => (
-                <MaterialCard key={material.id} material={material} />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-              <p className="text-sm text-muted">No recent activity.</p>
-            </div>
-          )}
-        </section>
-
         {/* Top Rated All Time */}
         <section>
           <div className="flex items-center justify-between mb-4">
@@ -265,6 +241,30 @@ export default async function DashboardPage() {
               >
                 Start reviewing →
               </Link>
+            </div>
+          )}
+        </section>
+
+        {/* Recently Active */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">💬 Recently Active</h2>
+              <p className="text-xs text-muted">Materials with recent reviews (last 3 days)</p>
+            </div>
+            <Link href="/library?sort=newest" className="text-xs text-primary hover:text-primary-dark font-medium">
+              View all →
+            </Link>
+          </div>
+          {recentlyActive && recentlyActive.length > 0 ? (
+            <div className="space-y-3">
+              {recentlyActive.slice(0, 5).map(material => (
+                <MaterialCard key={material.id} material={material} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
+              <p className="text-sm text-muted">No recent activity.</p>
             </div>
           )}
         </section>

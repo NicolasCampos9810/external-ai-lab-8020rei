@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { deleteUser } from '@/lib/actions/profiles'
 import type { Profile, MaterialWithScores } from '@/lib/supabase/types'
 
 interface AdminPanelProps {
@@ -57,6 +58,16 @@ function UsersTable({ users }: { users: Profile[] }) {
     router.refresh()
   }
 
+  async function handleDelete(userId: string, userEmail: string) {
+    if (!confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) return
+    const result = await deleteUser(userId)
+    if (result.error) {
+      alert(result.error)
+    } else {
+      router.refresh()
+    }
+  }
+
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <table className="w-full">
@@ -100,12 +111,20 @@ function UsersTable({ users }: { users: Profile[] }) {
                   : '—'}
               </td>
               <td className="px-5 py-3 text-right">
-                <button
-                  onClick={() => toggleRole(user.id, user.role)}
-                  className="text-xs text-primary hover:text-primary-dark font-medium"
-                >
-                  Make {user.role === 'admin' ? 'User' : 'Admin'}
-                </button>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => toggleRole(user.id, user.role)}
+                    className="text-xs text-primary hover:text-primary-dark font-medium"
+                  >
+                    Make {user.role === 'admin' ? 'User' : 'Admin'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(user.id, user.email)}
+                    className="text-xs text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
