@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import MaterialCard from '@/components/material-card'
 import Link from 'next/link'
-import { WEEKS } from '@/lib/supabase/types'
+import { WEEKS, WEEK_DESCRIPTIONS } from '@/lib/supabase/types'
 
 interface Props {
   searchParams: Promise<{
@@ -14,16 +14,17 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
   const currentWeek = params.week || 'Week 1'
   const supabase = await createClient()
 
-  // Get current user role
+  // Get current user role + reviewed IDs
   const { data: { user } } = await supabase.auth.getUser()
   let isAdmin = false
+  let userReviewedIds: string[] = []
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const [{ data: profile }, { data: userVotes }] = await Promise.all([
+      supabase.from('profiles').select('role').eq('id', user.id).single(),
+      supabase.from('votes').select('material_id').eq('user_id', user.id),
+    ])
     isAdmin = profile?.role === 'admin'
+    userReviewedIds = (userVotes ?? []).map(v => v.material_id)
   }
 
   // Get materials for the selected week, sorted by relevance
@@ -70,55 +71,83 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Week Tabs */}
+      {/* Week Tabs — horizontal scroll on mobile */}
       <div className="bg-card rounded-xl border border-border p-2 mb-6">
-        <div className="flex flex-wrap gap-2">
-          {WEEKS.map(week => {
-            const isActive = week === currentWeek
-            const count = weekCounts[week] || 0
-            return (
-              <Link
-                key={week}
-                href={`/weekly?week=${encodeURIComponent(week)}`}
-                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-primary text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {week}
-                <span className={`ml-2 text-xs ${
-                  isActive ? 'text-white/80' : 'text-muted'
-                }`}>
-                  ({count})
-                </span>
-              </Link>
-            )
-          })}
+        <div className="overflow-x-auto">
+          <div className="flex gap-2 flex-nowrap min-w-max">
+            {WEEKS.map(week => {
+              const isActive = week === currentWeek
+              const count = weekCounts[week] || 0
+              return (
+                <Link
+                  key={week}
+                  href={`/weekly?week=${encodeURIComponent(week)}`}
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                    isActive
+                      ? 'bg-primary text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {week}
+                  <span className={`ml-2 text-xs ${
+                    isActive ? 'text-white/80' : 'text-muted'
+                  }`}>
+                    ({count})
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
         </div>
       </div>
 
       {/* Week Content */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-6 mb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{currentWeek}</h2>
-            <p className="text-sm text-muted mt-1">
-              {materials && materials.length > 0
-                ? `${materials.length} ${materials.length === 1 ? 'material' : 'materials'} • Sorted by relevance`
-                : 'No materials for this week yet'}
-            </p>
+      {(() => {
+        const total = materials?.length ?? 0
+        const reviewed = materials?.filter(m => userReviewedIds.includes(m.id)).length ?? 0
+        const pct = total > 0 ? Math.round((reviewed / total) * 100) : 0
+        return (
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-5 md:p-6 mb-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-bold text-gray-900">{currentWeek}</h2>
+                {WEEK_DESCRIPTIONS[currentWeek] && (
+                  <p className="text-sm text-blue-700 font-medium mt-0.5">{WEEK_DESCRIPTIONS[currentWeek]}</p>
+                )}
+                <p className="text-xs text-muted mt-1">
+                  {total > 0 ? `${total} ${total === 1 ? 'material' : 'materials'} • Sorted by relevance` : 'No materials for this week yet'}
+                </p>
+                {/* Progress bar */}
+                {total > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-700">Your progress</span>
+                      <span className="text-xs font-semibold text-gray-900">{reviewed}/{total} reviewed</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-primary'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    {pct === 100 && (
+                      <p className="text-xs text-green-600 font-medium mt-1">✓ Week complete!</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              {isAdmin && (
+                <Link
+                  href="/upload"
+                  className="flex-shrink-0 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+                >
+                  Add Materials
+                </Link>
+              )}
+            </div>
           </div>
-          {isAdmin && (
-            <Link
-              href={`/upload`}
-              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
-            >
-              Add Materials
-            </Link>
-          )}
-        </div>
-      </div>
+        )
+      })()}
 
       {/* Materials List */}
       {materials && materials.length > 0 ? (
@@ -129,7 +158,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
               <div className="absolute -left-3 top-5 w-7 h-7 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold z-10 shadow-md">
                 #{idx + 1}
               </div>
-              <MaterialCard material={material} from="weekly" week={currentWeek} />
+              <MaterialCard material={material} from="weekly" week={currentWeek} isReviewed={userReviewedIds.includes(material.id)} />
             </div>
           ))}
         </div>

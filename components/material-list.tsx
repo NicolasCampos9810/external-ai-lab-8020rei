@@ -9,9 +9,10 @@ import type { MaterialWithScores } from '@/lib/supabase/types'
 interface MaterialListProps {
   materials: MaterialWithScores[]
   isAdmin: boolean
+  userReviewedIds?: string[]
 }
 
-export default function MaterialList({ materials, isAdmin }: MaterialListProps) {
+export default function MaterialList({ materials, isAdmin, userReviewedIds }: MaterialListProps) {
   const router = useRouter()
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -137,6 +138,7 @@ export default function MaterialList({ materials, isAdmin }: MaterialListProps) 
             selectable={selectMode}
             selected={selected.has(material.id)}
             onToggle={toggleSelect}
+            isReviewed={userReviewedIds?.includes(material.id)}
           />
         ))}
       </div>

@@ -19,9 +19,10 @@ interface MaterialCardProps {
   onToggle?: (id: string) => void
   from?: 'library' | 'weekly' | 'dashboard'
   week?: string
+  isReviewed?: boolean
 }
 
-export default function MaterialCard({ material, selectable, selected, onToggle, from, week }: MaterialCardProps) {
+export default function MaterialCard({ material, selectable, selected, onToggle, from, week, isReviewed }: MaterialCardProps) {
   // Use voting score if votes exist, otherwise fall back to initial_score
   const displayScore = material.vote_count > 0
     ? ((material.avg_quality + material.avg_relevance) / 2).toFixed(1)
@@ -142,6 +143,14 @@ export default function MaterialCard({ material, selectable, selected, onToggle,
         {/* Footer with responsive layout */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 md:mt-4 pt-2 md:pt-4 border-t border-gray-200 gap-1.5 sm:gap-4">
           <div className="flex flex-wrap items-center gap-x-2 md:gap-x-3 gap-y-1 text-xs text-gray-600">
+            {isReviewed && (
+              <span className="inline-flex items-center gap-1 font-medium text-green-600">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                Reviewed
+              </span>
+            )}
             {material.estimated_time && (
               <span className="inline-flex items-center gap-1 font-medium">
                 <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
