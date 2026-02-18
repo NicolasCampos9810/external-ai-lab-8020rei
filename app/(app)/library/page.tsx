@@ -20,16 +20,17 @@ export default async function LibraryPage({ searchParams }: Props) {
   const params = await searchParams
   const supabase = await createClient()
 
-  // Get current user role
+  // Get current user role + reviewed material IDs
   const { data: { user } } = await supabase.auth.getUser()
   let isAdmin = false
+  let userReviewedIds: string[] = []
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const [{ data: profile }, { data: userVotes }] = await Promise.all([
+      supabase.from('profiles').select('role').eq('id', user.id).single(),
+      supabase.from('votes').select('material_id').eq('user_id', user.id),
+    ])
     isAdmin = profile?.role === 'admin'
+    userReviewedIds = (userVotes ?? []).map(v => v.material_id)
   }
 
   let query = supabase.from('material_scores').select('*')
@@ -181,7 +182,7 @@ export default async function LibraryPage({ searchParams }: Props) {
 
       {materials && materials.length > 0 ? (
         <div className="mt-6">
-          <MaterialList materials={materials} isAdmin={isAdmin} />
+          <MaterialList materials={materials} isAdmin={isAdmin} userReviewedIds={userReviewedIds} />
         </div>
       ) : (
         <div className="bg-card rounded-xl border border-border p-12 text-center mt-6">

@@ -103,3 +103,13 @@ export const WEEKS = [
   'Week 6',
   'Optional',
 ] as const
+
+export const WEEK_DESCRIPTIONS: Record<string, string> = {
+  'Week 1': 'AI Foundations & Strategic Thinking',
+  'Week 2': 'Prompt Engineering & Practical Skills',
+  'Week 3': 'Workflow Automation & Productivity',
+  'Week 4': 'Advanced Applications & Product Use Cases',
+  'Week 5': 'AI-Assisted Development & Coding',
+  'Week 6': 'Organizational Impact & Change Management',
+  'Optional': 'Extra Resources for Deeper Learning',
+}
