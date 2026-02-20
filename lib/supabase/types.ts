@@ -101,5 +101,42 @@ export const WEEKS = [
   'Week 4',
   'Week 5',
   'Week 6',
-  'Optional',
+  'Week 7',
+  'Week 8',
+  'Week 9',
+  'Reference',
 ] as const
+
+export const WEEK_DESCRIPTIONS: Record<string, string> = {
+  'Week 1': 'AI Foundations & Strategic Thinking',
+  'Week 2': 'Prompt Engineering & Practical Skills',
+  'Week 3': 'Workflow Automation & Productivity',
+  'Week 4': 'Advanced Applications & Product Use Cases',
+  'Week 5': 'AI-Assisted Development & Coding',
+  'Week 6': 'Organizational Impact & Change Management',
+  'Week 7': 'Advanced AI Systems & Architecture',
+  'Week 8': 'Scaling AI Across Teams & Processes',
+  'Week 9': 'Capstone — Synthesis & Future Directions',
+  'Reference': 'Tools, Platforms & Ongoing Resources',
+}
+
+export interface WeekContent {
+  week: string
+  title: string | null
+  description: string | null
+  objectives: string[] | null
+  homework: string | null
+  deliverable_prompt: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Deliverable {
+  id: string
+  user_id: string
+  week: string
+  content: string
+  created_at: string
+  updated_at: string
+  profiles?: { full_name: string | null; email: string }
+}
