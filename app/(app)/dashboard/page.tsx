@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import MaterialCard from '@/components/material-card'
 import Link from 'next/link'
+import { WEEKS, WEEK_DESCRIPTIONS } from '@/lib/supabase/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -99,6 +100,27 @@ export default async function DashboardPage() {
     .select('*', { count: 'exact', head: true })
     .gte('created_at', weekAgo.toISOString())
 
+  // User progress: per-week Core material counts + user's reviewed IDs + deliverables
+  const [{ data: allMaterialsWeeks }, { data: userVotes }, { data: userDeliverables }] = await Promise.all([
+    supabase.from('materials').select('id, week, material_tier').not('week', 'is', null),
+    supabase.from('votes').select('material_id').eq('user_id', user!.id),
+    supabase.from('week_deliverables').select('week').eq('user_id', user!.id),
+  ])
+  const userReviewedIds = new Set((userVotes ?? []).map(v => v.material_id))
+  const submittedWeeks = new Set((userDeliverables ?? []).map(d => d.week))
+
+  // Compute per-week progress — only Core materials count toward progress
+  const weekProgress = WEEKS.map(week => {
+    const weekMaterials = (allMaterialsWeeks ?? []).filter(m => m.week === week)
+    const coreMaterials = weekMaterials.filter(m => m.material_tier === 'core')
+    const total = coreMaterials.length
+    const reviewed = coreMaterials.filter(m => userReviewedIds.has(m.id)).length
+    const hasDeliverable = submittedWeeks.has(week)
+    // Week complete = all Core reviewed + deliverable submitted (if any core materials exist)
+    const complete = total > 0 && reviewed === total && hasDeliverable
+    return { week, total, reviewed, pct: total > 0 ? Math.round((reviewed / total) * 100) : 0, hasDeliverable, complete }
+  }).filter(w => w.total > 0)
+
   return (
     <div className="max-w-6xl">
       {/* Header */}
@@ -184,121 +206,35 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Content Sections */}
-      <div className="space-y-6">
-        {/* Trending This Week */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">🔥 Trending This Week</h2>
-              <p className="text-xs text-muted">Most voted materials in the last 7 days</p>
-            </div>
-            <Link href="/library?sort=most_reviewed&date_filter=this_week" className="text-xs text-primary hover:text-primary-dark font-medium">
-              View all →
-            </Link>
-          </div>
-          {trendingSorted && trendingSorted.length > 0 ? (
-            <div className="space-y-3">
-              {trendingSorted.slice(0, 5).map((material, idx) => (
-                <div key={material.id} className="relative">
-                  <div className="absolute -left-3 top-5 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold z-10">
-                    {idx + 1}
-                  </div>
-                  <MaterialCard material={material} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-              <p className="text-sm text-muted">No activity this week yet. Start reviewing!</p>
-            </div>
-          )}
-        </section>
-
-        {/* Top Rated All Time */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">⭐ Top Rated All Time</h2>
-              <p className="text-xs text-muted">The highest quality materials overall</p>
-            </div>
-            <Link href="/library?sort=top_rated" className="text-xs text-primary hover:text-primary-dark font-medium">
-              View all →
-            </Link>
-          </div>
-          {topRated && topRated.length > 0 ? (
-            <div className="space-y-3">
-              {topRated.slice(0, 5).map(material => (
-                <MaterialCard key={material.id} material={material} />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-              <p className="text-sm text-muted">No rated materials yet.</p>
-              <Link
-                href="/library"
-                className="inline-block mt-2 text-xs text-primary hover:text-primary-dark font-medium"
-              >
-                Start reviewing →
-              </Link>
-            </div>
-          )}
-        </section>
-
-        {/* Recently Active */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">💬 Recently Active</h2>
-              <p className="text-xs text-muted">Materials with recent reviews (last 3 days)</p>
-            </div>
-            <Link href="/library?sort=newest" className="text-xs text-primary hover:text-primary-dark font-medium">
-              View all →
-            </Link>
-          </div>
-          {recentlyActive && recentlyActive.length > 0 ? (
-            <div className="space-y-3">
-              {recentlyActive.slice(0, 5).map(material => (
-                <MaterialCard key={material.id} material={material} />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-8 text-center">
-              <p className="text-sm text-muted">No recent activity.</p>
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Quick Actions — visible near top */}
+      <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Link
-          href="/library"
+          href="/weekly"
           className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg"
         >
-          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
           <div>
-            <p className="font-semibold">Browse Library</p>
-            <p className="text-xs text-blue-100">Explore all materials</p>
+            <p className="font-semibold text-sm">This Week's Training</p>
+            <p className="text-xs text-blue-100">Start where you left off</p>
           </div>
         </Link>
 
         <Link
-          href="/upload"
-          className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg"
+          href="/library"
+          className="flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl hover:from-indigo-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
         >
-          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
           </div>
           <div>
-            <p className="font-semibold">Upload Materials</p>
-            <p className="text-xs text-green-100">Add new resources</p>
+            <p className="font-semibold text-sm">Browse Library</p>
+            <p className="text-xs text-indigo-100">All {totalMaterials || 0} materials</p>
           </div>
         </Link>
 
@@ -306,16 +242,129 @@ export default async function DashboardPage() {
           href="/library?score_filter=none"
           className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl hover:from-purple-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
         >
-          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           </div>
           <div>
-            <p className="font-semibold">Review Materials</p>
-            <p className="text-xs text-purple-100">Help rate content</p>
+            <p className="font-semibold text-sm">Review Materials</p>
+            <p className="text-xs text-purple-100">Rate unreviewed content</p>
           </div>
         </Link>
+      </div>
+
+      {/* Your Progress */}
+      {weekProgress.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">📊 Your Progress</h2>
+              <p className="text-xs text-muted">Core materials reviewed + deliverable submitted per week</p>
+            </div>
+            <Link href="/weekly" className="text-xs text-primary hover:text-primary-dark font-medium">
+              Continue training →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {weekProgress.map(({ week, total, reviewed, pct, hasDeliverable, complete }) => (
+              <Link
+                key={week}
+                href={`/weekly?week=${encodeURIComponent(week)}`}
+                className={`bg-card rounded-xl border p-4 hover:shadow-md transition-all ${
+                  complete ? 'border-green-300 bg-green-50/50 hover:border-green-400' : 'border-border hover:border-primary/30'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{week}</p>
+                    <p className="text-xs text-muted">{WEEK_DESCRIPTIONS[week]}</p>
+                  </div>
+                  {complete ? (
+                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Done!</span>
+                  ) : (
+                    <span className="text-xs font-medium text-gray-500 flex-shrink-0">{pct}%</span>
+                  )}
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${complete ? 'bg-green-500' : 'bg-primary'}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted">{reviewed}/{total} core reviewed</p>
+                {total > 0 && reviewed === total && !hasDeliverable && (
+                  <p className="text-xs text-amber-600 font-medium mt-1">Submit deliverable to complete →</p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Sections — only shown when they have data */}
+      <div className="space-y-6">
+        {trendingSorted && trendingSorted.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">🔥 Trending This Week</h2>
+                <p className="text-xs text-muted">Most reviewed materials in the last 7 days</p>
+              </div>
+              <Link href="/library?sort=most_reviewed&date_filter=this_week" className="text-xs text-primary hover:text-primary-dark font-medium">
+                View all →
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {trendingSorted.slice(0, 5).map((material, idx) => (
+                <div key={material.id} className="relative">
+                  <div className="absolute -left-3 top-5 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold z-10">
+                    {idx + 1}
+                  </div>
+                  <MaterialCard material={material} isReviewed={userReviewedIds.has(material.id)} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {topRated && topRated.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">⭐ Top Rated All Time</h2>
+                <p className="text-xs text-muted">The highest quality materials overall</p>
+              </div>
+              <Link href="/library?sort=top_rated" className="text-xs text-primary hover:text-primary-dark font-medium">
+                View all →
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {topRated.slice(0, 5).map(material => (
+                <MaterialCard key={material.id} material={material} isReviewed={userReviewedIds.has(material.id)} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {recentlyActive && recentlyActive.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">💬 Recently Active</h2>
+                <p className="text-xs text-muted">Materials with recent reviews (last 3 days)</p>
+              </div>
+              <Link href="/library?sort=newest" className="text-xs text-primary hover:text-primary-dark font-medium">
+                View all →
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {recentlyActive.slice(0, 5).map(material => (
+                <MaterialCard key={material.id} material={material} isReviewed={userReviewedIds.has(material.id)} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

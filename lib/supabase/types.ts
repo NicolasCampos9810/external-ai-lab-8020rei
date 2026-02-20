@@ -1,5 +1,7 @@
 export type UserRole = 'admin' | 'user'
 
+export type MaterialTier = 'core' | 'optional' | 'reference'
+
 export interface Profile {
   id: string
   email: string
@@ -24,6 +26,8 @@ export interface Material {
   initial_quality: number | null
   initial_relevance: number | null
   is_essential: boolean
+  material_tier: MaterialTier
+  justification_for_assignment: string | null
   file_url: string | null
   file_name: string | null
   file_type: string | null
@@ -62,6 +66,25 @@ export interface MaterialWithScores extends Material {
   avg_overall: number
   vote_count: number
   uploader?: Profile
+}
+
+export interface WeekContent {
+  week: string
+  title: string | null
+  description: string | null
+  objectives: string | null
+  homework: string | null
+  deliverable_prompt: string | null
+  updated_at: string
+  updated_by: string | null
+}
+
+export interface WeekDeliverable {
+  id: string
+  user_id: string
+  week: string
+  link: string
+  submitted_at: string
 }
 
 export const CATEGORIES = [
@@ -118,25 +141,4 @@ export const WEEK_DESCRIPTIONS: Record<string, string> = {
   'Week 8': 'Scaling AI Across Teams & Processes',
   'Week 9': 'Capstone — Synthesis & Future Directions',
   'Reference': 'Tools, Platforms & Ongoing Resources',
-}
-
-export interface WeekContent {
-  week: string
-  title: string | null
-  description: string | null
-  objectives: string[] | null
-  homework: string | null
-  deliverable_prompt: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface Deliverable {
-  id: string
-  user_id: string
-  week: string
-  content: string
-  created_at: string
-  updated_at: string
-  profiles?: { full_name: string | null; email: string }
 }

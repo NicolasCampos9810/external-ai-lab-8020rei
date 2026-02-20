@@ -118,6 +118,16 @@ export default async function MaterialDetailPage({ params, searchParams }: Props
           <div className="bg-card rounded-xl border border-border p-6">
             {/* Badges */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {material.material_tier === 'core' && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-bold bg-gradient-to-r from-amber-400 to-orange-400 text-white shadow-sm">
+                  💎 Core
+                </span>
+              )}
+              {material.material_tier === 'reference' && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300">
+                  📌 Reference
+                </span>
+              )}
               {material.content_type && (
                 <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${
                   CONTENT_TYPE_COLORS[material.content_type] || 'bg-gray-100 text-gray-600'
@@ -141,6 +151,13 @@ export default async function MaterialDetailPage({ params, searchParams }: Props
 
             {material.description && (
               <p className="text-muted mt-3">{material.description}</p>
+            )}
+
+            {material.justification_for_assignment && (
+              <blockquote className="mt-3 pl-4 border-l-4 border-amber-400 bg-amber-50 rounded-r-lg py-2 pr-3">
+                <p className="text-sm text-amber-800 italic leading-relaxed">{material.justification_for_assignment}</p>
+                <p className="text-xs text-amber-600 mt-1 font-medium">Why this was assigned</p>
+              </blockquote>
             )}
 
             {/* Resource link - prominent */}

@@ -1,16 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { updateWeekContent } from '@/lib/actions/week-content'
 
-interface WeekEditFormProps {
+interface Props {
   week: string
-  initialTitle?: string | null
-  initialDescription?: string | null
-  initialObjectives?: string[] | null
-  initialHomework?: string | null
-  initialDeliverablePrompt?: string | null
-  onClose: () => void
+  initialTitle: string
+  initialDescription: string
+  initialObjectives: string
+  initialHomework: string
+  initialDeliverablePrompt: string
 }
 
 export default function WeekEditForm({
@@ -20,159 +20,130 @@ export default function WeekEditForm({
   initialObjectives,
   initialHomework,
   initialDeliverablePrompt,
-  onClose,
-}: WeekEditFormProps) {
-  const [title, setTitle] = useState(initialTitle || '')
-  const [description, setDescription] = useState(initialDescription || '')
-  const [objectivesText, setObjectivesText] = useState(
-    (initialObjectives || []).join('\n')
-  )
-  const [homework, setHomework] = useState(initialHomework || '')
-  const [deliverablePrompt, setDeliverablePrompt] = useState(
-    initialDeliverablePrompt || ''
-  )
-  const [loading, setLoading] = useState(false)
+}: Props) {
+  const router = useRouter()
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(initialTitle)
+  const [description, setDescription] = useState(initialDescription)
+  const [objectives, setObjectives] = useState(initialObjectives)
+  const [homework, setHomework] = useState(initialHomework)
+  const [deliverablePrompt, setDeliverablePrompt] = useState(initialDeliverablePrompt)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  async function handleSave() {
-    setLoading(true)
-    setError(null)
-    setSuccess(false)
-
-    const objectives = objectivesText
-      .split('\n')
-      .map(s => s.trim())
-      .filter(Boolean)
-
-    const result = await updateWeekContent(week, {
-      title: title.trim() || undefined,
-      description: description.trim() || undefined,
-      objectives: objectives.length > 0 ? objectives : undefined,
-      homework: homework.trim() || undefined,
-      deliverable_prompt: deliverablePrompt.trim() || undefined,
+  function handleSave() {
+    startTransition(async () => {
+      const result = await updateWeekContent(week, {
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
+        objectives,
+        homework,
+        deliverable_prompt: deliverablePrompt,
+      })
+      if (result?.error) {
+        setError(result.error)
+      } else {
+        setEditing(false)
+        setError(null)
+        router.refresh()
+      }
     })
-
-    setLoading(false)
-
-    if (result?.error) {
-      setError(result.error)
-    } else {
-      setSuccess(true)
-      setTimeout(() => onClose(), 800)
-    }
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900">Edit {week}</h3>
-        <button
-          onClick={onClose}
-          className="text-muted hover:text-gray-700 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-blue-900">Admin: Edit Week Content</p>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Edit Week
+          </button>
+        )}
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          {error}
+      {editing ? (
+        <div className="space-y-3">
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+
+          <div>
+            <label className="block text-xs font-medium text-blue-800 mb-1">📌 Week Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder={week}
+              className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-blue-800 mb-1">📝 Description / Subtitle</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="e.g. AI Foundations & Strategic Thinking"
+              className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-blue-800 mb-1">🎯 Learning Objectives</label>
+            <textarea
+              value={objectives}
+              onChange={e => setObjectives(e.target.value)}
+              rows={4}
+              placeholder="What participants will learn this week..."
+              className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-blue-800 mb-1">📝 Homework &amp; To-Do</label>
+            <textarea
+              value={homework}
+              onChange={e => setHomework(e.target.value)}
+              rows={3}
+              placeholder="What participants should do / practice this week..."
+              className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-blue-800 mb-1">📬 Deliverable Prompt</label>
+            <textarea
+              value={deliverablePrompt}
+              onChange={e => setDeliverablePrompt(e.target.value)}
+              rows={3}
+              placeholder="Describe what participants should submit (e.g. 'Share a link to your project or write-up...')"
+              className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={isPending}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setError(null) }}
+              className="px-4 py-2 border border-blue-200 text-blue-700 text-sm rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
+      ) : (
+        <p className="text-xs text-blue-700">
+          Click &quot;Edit Week&quot; to set title, description, objectives, homework, and deliverable prompt for this week.
+        </p>
       )}
-      {success && (
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-          Saved!
-        </div>
-      )}
-
-      {/* Title */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Week Title
-        </label>
-        <input
-          type="text"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder={week}
-          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-        />
-      </div>
-
-      {/* Description */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Description / Subtitle
-        </label>
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="e.g. AI Foundations & Strategic Thinking"
-          rows={2}
-          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
-        />
-      </div>
-
-      {/* Objectives */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Objectives <span className="text-muted font-normal">(one per line)</span>
-        </label>
-        <textarea
-          value={objectivesText}
-          onChange={e => setObjectivesText(e.target.value)}
-          placeholder="Understand core AI concepts&#10;Apply prompt engineering techniques&#10;..."
-          rows={5}
-          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y font-mono"
-        />
-      </div>
-
-      {/* Homework */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Homework / Notes <span className="text-muted font-normal">(markdown supported)</span>
-        </label>
-        <textarea
-          value={homework}
-          onChange={e => setHomework(e.target.value)}
-          placeholder="This week, focus on..."
-          rows={4}
-          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
-        />
-      </div>
-
-      {/* Deliverable Prompt */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Deliverable Prompt
-        </label>
-        <textarea
-          value={deliverablePrompt}
-          onChange={e => setDeliverablePrompt(e.target.value)}
-          placeholder="Describe what participants should submit this week..."
-          rows={3}
-          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
-        />
-      </div>
-
-      <div className="flex gap-3 pt-1">
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="flex-1 py-2.5 bg-primary text-white rounded-lg font-medium text-sm hover:bg-primary-dark transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Saving...' : 'Save Changes'}
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-2.5 border border-border rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
     </div>
   )
 }
