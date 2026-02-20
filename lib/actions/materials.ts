@@ -13,7 +13,8 @@ export interface ParsedMaterial {
   initial_score?: number
   initial_quality?: number
   initial_relevance?: number
-  is_essential: boolean
+  material_tier?: 'core' | 'optional' | 'reference'
+  justification_for_assignment?: string
   week?: string
   estimated_time?: string
 }
@@ -84,7 +85,8 @@ export async function uploadMaterials(materials: ParsedMaterial[]) {
       initial_score: m.initial_score ?? null,
       initial_quality: m.initial_quality ?? null,
       initial_relevance: m.initial_relevance ?? null,
-      is_essential: m.is_essential ?? false,
+      material_tier: m.material_tier ?? 'optional',
+      justification_for_assignment: m.justification_for_assignment?.trim() || null,
       week: m.week?.trim() || null,
       estimated_time: m.estimated_time?.trim() || null,
       uploaded_by: user.id,

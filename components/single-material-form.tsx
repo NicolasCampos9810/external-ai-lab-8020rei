@@ -18,7 +18,8 @@ export default function SingleMaterialForm() {
   const [contentType, setContentType] = useState('')
   const [week, setWeek] = useState('')
   const [estimatedTime, setEstimatedTime] = useState('')
-  const [isEssential, setIsEssential] = useState(false)
+  const [tier, setTier] = useState<'optional' | 'core' | 'reference'>('optional')
+  const [justification, setJustification] = useState('')
 
   const [touched, setTouched] = useState<Record<string, boolean>>({})
 
@@ -51,7 +52,8 @@ export default function SingleMaterialForm() {
       content_type: contentType || undefined,
       week: week || undefined,
       estimated_time: estimatedTime.trim() || undefined,
-      is_essential: isEssential,
+      material_tier: tier,
+      justification_for_assignment: justification.trim() || undefined,
     }])
 
     setLoading(false)
@@ -213,23 +215,39 @@ export default function SingleMaterialForm() {
         />
       </div>
 
-      {/* Essential toggle */}
-      <label className="flex items-center gap-3 cursor-pointer select-none">
-        <div className="relative">
-          <input
-            type="checkbox"
-            checked={isEssential}
-            onChange={e => setIsEssential(e.target.checked)}
-            className="sr-only"
-          />
-          <div className={`w-10 h-6 rounded-full transition-colors ${isEssential ? 'bg-amber-400' : 'bg-gray-200'}`} />
-          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isEssential ? 'translate-x-4' : ''}`} />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-gray-700">💎 Mark as Essential</p>
-          <p className="text-xs text-muted">Essential materials are highlighted across the platform</p>
-        </div>
-      </label>
+      {/* Tier selector */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Material Tier</label>
+        <select
+          value={tier}
+          onChange={e => setTier(e.target.value as 'optional' | 'core' | 'reference')}
+          className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+        >
+          <option value="optional">Optional — good supplementary content</option>
+          <option value="core">💎 Core — required reading for the week</option>
+          <option value="reference">📌 Reference — tools, platforms, evergreen</option>
+        </select>
+        <p className="text-xs text-muted mt-1">
+          {tier === 'core' && 'Core materials are highlighted and count toward weekly progress tracking.'}
+          {tier === 'reference' && 'Reference materials appear in the Reference tab for cross-week tools and resources.'}
+          {tier === 'optional' && 'Optional materials are available for those who want to go deeper.'}
+        </p>
+      </div>
+
+      {/* Justification for assignment — shown for Core and Optional */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Justification for Assignment{tier === 'core' && <span className="text-amber-600 ml-1 text-xs">(recommended for Core)</span>}
+        </label>
+        <textarea
+          value={justification}
+          onChange={e => setJustification(e.target.value)}
+          placeholder="Why was this material assigned? e.g. 'Foundational read for understanding AI workflow automation...'"
+          rows={2}
+          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+        />
+        <p className="text-xs text-muted mt-1">This note is shown on the material card to help participants understand its relevance.</p>
+      </div>
 
       <button
         type="submit"

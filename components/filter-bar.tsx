@@ -205,8 +205,8 @@ export default function FilterBar({
 
               <select value={currentEssentialFilter} onChange={e => updateParams('essential_filter', e.target.value)} className={selectClass}>
                 <option value="all">All Materials</option>
-                <option value="essential">Essential Only</option>
-                <option value="non_essential">Regular Only</option>
+                <option value="essential">💎 Core Only</option>
+                <option value="non_essential">Non-Core Only</option>
               </select>
             </div>
           )}
@@ -243,7 +243,7 @@ export default function FilterBar({
             <select value={currentSort} onChange={e => updateParams('sort', e.target.value)} className={selectClass}>
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="essential_first">Essential First</option>
+              <option value="essential_first">💎 Core First</option>
               <option value="top_rated">Top Rated</option>
               <option value="most_reviewed">Most Reviewed</option>
             </select>
@@ -271,8 +271,8 @@ export default function FilterBar({
 
             <select value={currentEssentialFilter} onChange={e => updateParams('essential_filter', e.target.value)} className={selectClass}>
               <option value="all">All Materials</option>
-              <option value="essential">Essential</option>
-              <option value="non_essential">Regular</option>
+              <option value="essential">💎 Core</option>
+              <option value="non_essential">Non-Core</option>
             </select>
           </div>
 

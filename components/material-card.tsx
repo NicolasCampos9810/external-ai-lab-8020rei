@@ -62,18 +62,25 @@ export default function MaterialCard({ material, selectable, selected, onToggle,
       <Link
         href={materialLink}
         className={`flex-1 min-w-0 block rounded-xl border p-3 md:p-6 hover:shadow-lg transition-all ${
-          material.is_essential
+          material.material_tier === 'core'
             ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-400'
-            : 'bg-card border-border hover:border-primary/30'
+            : material.material_tier === 'reference'
+              ? 'border-slate-300 bg-slate-50/50 hover:border-slate-400'
+              : 'bg-card border-border hover:border-primary/30'
         }`}
       >
         <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-3 sm:gap-4">
           <div className="flex-1 min-w-0">
             {/* Badges row with better spacing */}
             <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3 flex-wrap">
-              {material.is_essential && (
+              {material.material_tier === 'core' && (
                 <span className="inline-flex items-center px-2 md:px-3 py-0.5 md:py-1 rounded-md text-xs font-bold bg-gradient-to-r from-amber-400 to-orange-400 text-white shadow-sm flex-shrink-0">
-                  💎 Essential
+                  💎 Core
+                </span>
+              )}
+              {material.material_tier === 'reference' && (
+                <span className="inline-flex items-center px-2 md:px-3 py-0.5 md:py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-300 flex-shrink-0">
+                  📌 Reference
                 </span>
               )}
               {material.content_type && (
@@ -104,6 +111,13 @@ export default function MaterialCard({ material, selectable, selected, onToggle,
             {/* Description with better line height */}
             {material.description && (
               <p className="text-muted text-xs md:text-sm leading-relaxed line-clamp-2 mb-2 md:mb-3">{material.description}</p>
+            )}
+
+            {/* Justification for assignment — shown as a highlighted quote */}
+            {material.justification_for_assignment && (
+              <blockquote className="mb-2 md:mb-3 pl-3 border-l-2 border-amber-400 text-xs text-amber-800 italic leading-relaxed line-clamp-2">
+                {material.justification_for_assignment}
+              </blockquote>
             )}
 
             {/* Link preview with icon - more compact on mobile */}

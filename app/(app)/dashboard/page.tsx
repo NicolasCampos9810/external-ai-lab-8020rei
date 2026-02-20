@@ -100,19 +100,25 @@ export default async function DashboardPage() {
     .select('*', { count: 'exact', head: true })
     .gte('created_at', weekAgo.toISOString())
 
-  // User progress: per-week material counts + user's reviewed IDs
-  const [{ data: allMaterialsWeeks }, { data: userVotes }] = await Promise.all([
-    supabase.from('materials').select('id, week').not('week', 'is', null),
+  // User progress: per-week Core material counts + user's reviewed IDs + deliverables
+  const [{ data: allMaterialsWeeks }, { data: userVotes }, { data: userDeliverables }] = await Promise.all([
+    supabase.from('materials').select('id, week, material_tier').not('week', 'is', null),
     supabase.from('votes').select('material_id').eq('user_id', user!.id),
+    supabase.from('week_deliverables').select('week').eq('user_id', user!.id),
   ])
   const userReviewedIds = new Set((userVotes ?? []).map(v => v.material_id))
+  const submittedWeeks = new Set((userDeliverables ?? []).map(d => d.week))
 
-  // Compute per-week progress
+  // Compute per-week progress — only Core materials count toward progress
   const weekProgress = WEEKS.map(week => {
     const weekMaterials = (allMaterialsWeeks ?? []).filter(m => m.week === week)
-    const total = weekMaterials.length
-    const reviewed = weekMaterials.filter(m => userReviewedIds.has(m.id)).length
-    return { week, total, reviewed, pct: total > 0 ? Math.round((reviewed / total) * 100) : 0 }
+    const coreMaterials = weekMaterials.filter(m => m.material_tier === 'core')
+    const total = coreMaterials.length
+    const reviewed = coreMaterials.filter(m => userReviewedIds.has(m.id)).length
+    const hasDeliverable = submittedWeeks.has(week)
+    // Week complete = all Core reviewed + deliverable submitted (if any core materials exist)
+    const complete = total > 0 && reviewed === total && hasDeliverable
+    return { week, total, reviewed, pct: total > 0 ? Math.round((reviewed / total) * 100) : 0, hasDeliverable, complete }
   }).filter(w => w.total > 0)
 
   return (
@@ -254,37 +260,42 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">📊 Your Progress</h2>
-              <p className="text-xs text-muted">Materials you&apos;ve reviewed per week (reviewing = completed)</p>
+              <p className="text-xs text-muted">Core materials reviewed + deliverable submitted per week</p>
             </div>
             <Link href="/weekly" className="text-xs text-primary hover:text-primary-dark font-medium">
               Continue training →
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {weekProgress.map(({ week, total, reviewed, pct }) => (
+            {weekProgress.map(({ week, total, reviewed, pct, hasDeliverable, complete }) => (
               <Link
                 key={week}
                 href={`/weekly?week=${encodeURIComponent(week)}`}
-                className="bg-card rounded-xl border border-border p-4 hover:border-primary/30 hover:shadow-md transition-all"
+                className={`bg-card rounded-xl border p-4 hover:shadow-md transition-all ${
+                  complete ? 'border-green-300 bg-green-50/50 hover:border-green-400' : 'border-border hover:border-primary/30'
+                }`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{week}</p>
                     <p className="text-xs text-muted">{WEEK_DESCRIPTIONS[week]}</p>
                   </div>
-                  {pct === 100 ? (
-                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">Done!</span>
+                  {complete ? (
+                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Done!</span>
                   ) : (
                     <span className="text-xs font-medium text-gray-500 flex-shrink-0">{pct}%</span>
                   )}
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1">
                   <div
-                    className={`h-1.5 rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-primary'}`}
+                    className={`h-1.5 rounded-full transition-all ${complete ? 'bg-green-500' : 'bg-primary'}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-muted">{reviewed} of {total} reviewed</p>
+                <p className="text-xs text-muted">{reviewed}/{total} core reviewed</p>
+                {total > 0 && reviewed === total && !hasDeliverable && (
+                  <p className="text-xs text-amber-600 font-medium mt-1">Submit deliverable to complete →</p>
+                )}
               </Link>
             ))}
           </div>

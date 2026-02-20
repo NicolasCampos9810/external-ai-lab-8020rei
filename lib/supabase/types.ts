@@ -1,5 +1,7 @@
 export type UserRole = 'admin' | 'user'
 
+export type MaterialTier = 'core' | 'optional' | 'reference'
+
 export interface Profile {
   id: string
   email: string
@@ -24,6 +26,8 @@ export interface Material {
   initial_quality: number | null
   initial_relevance: number | null
   is_essential: boolean
+  material_tier: MaterialTier
+  justification_for_assignment: string | null
   file_url: string | null
   file_name: string | null
   file_type: string | null
@@ -64,6 +68,23 @@ export interface MaterialWithScores extends Material {
   uploader?: Profile
 }
 
+export interface WeekContent {
+  week: string
+  objectives: string | null
+  homework: string | null
+  deliverable_prompt: string | null
+  updated_at: string
+  updated_by: string | null
+}
+
+export interface WeekDeliverable {
+  id: string
+  user_id: string
+  week: string
+  link: string
+  submitted_at: string
+}
+
 export const CATEGORIES = [
   'AI Fundamentals',
   'Implementation Strategy',
@@ -101,7 +122,10 @@ export const WEEKS = [
   'Week 4',
   'Week 5',
   'Week 6',
-  'Optional',
+  'Week 7',
+  'Week 8',
+  'Week 9',
+  'Reference',
 ] as const
 
 export const WEEK_DESCRIPTIONS: Record<string, string> = {
@@ -111,5 +135,8 @@ export const WEEK_DESCRIPTIONS: Record<string, string> = {
   'Week 4': 'Advanced Applications & Product Use Cases',
   'Week 5': 'AI-Assisted Development & Coding',
   'Week 6': 'Organizational Impact & Change Management',
-  'Optional': 'Extra Resources for Deeper Learning',
+  'Week 7': 'Advanced AI Systems & Architecture',
+  'Week 8': 'Scaling AI Across Teams & Processes',
+  'Week 9': 'Capstone — Synthesis & Future Directions',
+  'Reference': 'Tools, Platforms & Ongoing Resources',
 }

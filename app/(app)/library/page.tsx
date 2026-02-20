@@ -111,19 +111,20 @@ export default async function LibraryPage({ searchParams }: Props) {
     }
   }
 
-  // Essential filter
+  // Tier/Core filter
   if (params.essential_filter && params.essential_filter !== 'all') {
     if (params.essential_filter === 'essential') {
-      query = query.eq('is_essential', true)
+      query = query.eq('material_tier', 'core')
     } else if (params.essential_filter === 'non_essential') {
-      query = query.eq('is_essential', false)
+      query = query.neq('material_tier', 'core')
     }
   }
 
   // Sort
   switch (params.sort) {
     case 'essential_first':
-      query = query.order('is_essential', { ascending: false }).order('avg_overall', { ascending: false, nullsFirst: false })
+      // Sort core first, then reference, then optional, within each group sort by rating
+      query = query.order('material_tier', { ascending: true }).order('avg_overall', { ascending: false, nullsFirst: false })
       break
     case 'top_rated':
       query = query.order('avg_overall', { ascending: false, nullsFirst: false })
