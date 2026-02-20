@@ -1,17 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import MaterialCard from '@/components/material-card'
+import WeekEditForm from '@/components/week-edit-form'
+import DeliverableForm from '@/components/deliverable-form'
 import Link from 'next/link'
 import { WEEKS, WEEK_DESCRIPTIONS } from '@/lib/supabase/types'
 
 interface Props {
   searchParams: Promise<{
     week?: string
+    tab?: string
   }>
 }
 
 export default async function WeeklyTrainingPage({ searchParams }: Props) {
   const params = await searchParams
   const currentWeek = params.week || 'Week 1'
+  const currentTab = params.tab || 'resources'
   const supabase = await createClient()
 
   // Get current user role + reviewed IDs
@@ -27,15 +31,43 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
     userReviewedIds = (userVotes ?? []).map(v => v.material_id)
   }
 
-  // Get materials for the selected week, sorted by relevance
+  // Get materials for the selected week, sorted by tier then relevance
+  // material_tier: 'core' < 'optional' < 'reference' alphabetically = Core first
   const { data: materials } = await supabase
     .from('material_scores')
     .select('*')
     .eq('week', currentWeek)
+    .order('material_tier', { ascending: true })
     .order('avg_relevance', { ascending: false, nullsFirst: false })
     .order('avg_overall', { ascending: false, nullsFirst: false })
 
-  // Get counts for each week to show in tabs
+  // Get week content (objectives, homework, deliverable prompt)
+  const { data: weekContent } = await supabase
+    .from('week_content')
+    .select('*')
+    .eq('week', currentWeek)
+    .single()
+
+  // Get user's deliverable for this week
+  const { data: userDeliverable } = user
+    ? await supabase
+        .from('week_deliverables')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('week', currentWeek)
+        .single()
+    : { data: null }
+
+  // Admin: get all deliverables for this week
+  const { data: allDeliverables } = isAdmin
+    ? await supabase
+        .from('week_deliverables')
+        .select('*, profiles(full_name, email)')
+        .eq('week', currentWeek)
+        .order('submitted_at', { ascending: false })
+    : { data: null }
+
+  // Get counts for each week tab
   const weekCounts: Record<string, number> = {}
   for (const week of WEEKS) {
     const { count } = await supabase
@@ -45,30 +77,29 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
     weekCounts[week] = count || 0
   }
 
+  // Core-only progress
+  const coreMats = (materials ?? []).filter(m => m.material_tier === 'core')
+  const optionalMats = (materials ?? []).filter(m => m.material_tier === 'optional')
+  const referenceMats = (materials ?? []).filter(m => m.material_tier === 'reference')
+
+  const coreTotal = coreMats.length
+  const coreReviewed = coreMats.filter(m => userReviewedIds.includes(m.id)).length
+  const hasDeliverable = !!userDeliverable
+  const corePct = coreTotal > 0 ? Math.round((coreReviewed / coreTotal) * 100) : 0
+  const weekComplete = coreTotal > 0 && coreReviewed === coreTotal && hasDeliverable
+
+  const TABS = [
+    { id: 'resources', label: '📚 Resources' },
+    { id: 'objectives', label: '🎯 Objectives' },
+    { id: 'deliverable', label: '📬 Deliverable' },
+  ] as const
+
   return (
     <div className="max-w-6xl">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Weekly Training</h1>
-        <p className="text-muted mt-1">Materials organized by training week, sorted by relevance</p>
-      </div>
-
-      {/* Info Box - How it works */}
-      <div className="mb-6 bg-blue-50 rounded-xl border border-blue-200 p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg className="w-6 h-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-blue-900">How it works</h3>
-            <p className="text-sm text-blue-700 mt-1">
-              Materials are organized by training week and sorted by <strong>relevance score</strong> - showing you the most applicable content first.
-              The ranking helps you prioritize your learning for each week.
-            </p>
-          </div>
-        </div>
+        <p className="text-muted mt-1">Materials organized by training week</p>
       </div>
 
       {/* Week Tabs — horizontal scroll on mobile */}
@@ -89,9 +120,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                   }`}
                 >
                   {week}
-                  <span className={`ml-2 text-xs ${
-                    isActive ? 'text-white/80' : 'text-muted'
-                  }`}>
+                  <span className={`ml-2 text-xs ${isActive ? 'text-white/80' : 'text-muted'}`}>
                     ({count})
                   </span>
                 </Link>
@@ -101,82 +130,265 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Week Content */}
-      {(() => {
-        const total = materials?.length ?? 0
-        const reviewed = materials?.filter(m => userReviewedIds.includes(m.id)).length ?? 0
-        const pct = total > 0 ? Math.round((reviewed / total) * 100) : 0
-        return (
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-5 md:p-6 mb-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold text-gray-900">{currentWeek}</h2>
-                {WEEK_DESCRIPTIONS[currentWeek] && (
-                  <p className="text-sm text-blue-700 font-medium mt-0.5">{WEEK_DESCRIPTIONS[currentWeek]}</p>
-                )}
-                <p className="text-xs text-muted mt-1">
-                  {total > 0 ? `${total} ${total === 1 ? 'material' : 'materials'} • Sorted by relevance` : 'No materials for this week yet'}
-                </p>
-                {/* Progress bar */}
-                {total > 0 && (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-700">Your progress</span>
-                      <span className="text-xs font-semibold text-gray-900">{reviewed}/{total} reviewed</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-primary'}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    {pct === 100 && (
-                      <p className="text-xs text-green-600 font-medium mt-1">✓ Week complete!</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              {isAdmin && (
-                <Link
-                  href="/upload"
-                  className="flex-shrink-0 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
-                >
-                  Add Materials
-                </Link>
-              )}
-            </div>
-          </div>
-        )
-      })()}
+      {/* Week Header with progress */}
+      <div className={`rounded-xl border p-5 md:p-6 mb-6 ${
+        weekComplete
+          ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+          : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200'
+      }`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-gray-900">{currentWeek}</h2>
+            {WEEK_DESCRIPTIONS[currentWeek] && (
+              <p className="text-sm text-blue-700 font-medium mt-0.5">{WEEK_DESCRIPTIONS[currentWeek]}</p>
+            )}
+            <p className="text-xs text-muted mt-1">
+              {materials && materials.length > 0
+                ? `${materials.length} ${materials.length === 1 ? 'material' : 'materials'}${coreTotal > 0 ? ` • ${coreTotal} core` : ''}`
+                : 'No materials for this week yet'}
+            </p>
 
-      {/* Materials List */}
-      {materials && materials.length > 0 ? (
-        <div className="space-y-3">
-          {materials.map((material, idx) => (
-            <div key={material.id} className="relative">
-              {/* Relevance ranking badge */}
-              <div className="absolute -left-3 top-5 w-7 h-7 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold z-10 shadow-md">
-                #{idx + 1}
+            {/* Core progress bar */}
+            {coreTotal > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-700">Core progress</span>
+                  <span className="text-xs font-semibold text-gray-900">{coreReviewed}/{coreTotal} reviewed</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all ${
+                      weekComplete ? 'bg-green-500' : corePct === 100 ? 'bg-amber-500' : 'bg-primary'
+                    }`}
+                    style={{ width: `${corePct}%` }}
+                  />
+                </div>
+                {weekComplete && (
+                  <p className="text-xs text-green-600 font-medium mt-1">✓ Week complete!</p>
+                )}
+                {!weekComplete && corePct === 100 && coreTotal > 0 && (
+                  <p className="text-xs text-amber-600 font-medium mt-1">
+                    All core reviewed — submit deliverable to complete →
+                  </p>
+                )}
               </div>
-              <MaterialCard material={material} from="weekly" week={currentWeek} isReviewed={userReviewedIds.includes(material.id)} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-card rounded-xl border border-border p-12 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-            <svg className="w-8 h-8 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            )}
           </div>
-          <p className="text-muted mb-4">No materials for {currentWeek} yet.</p>
+
           {isAdmin && (
             <Link
               href="/upload"
-              className="inline-block px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+              className="flex-shrink-0 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
             >
-              Upload Materials
+              Add Materials
             </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Sub-tabs: Resources / Objectives / Deliverable */}
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {TABS.map(tab => (
+          <Link
+            key={tab.id}
+            href={`/weekly?week=${encodeURIComponent(currentWeek)}&tab=${tab.id}`}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              currentTab === tab.id
+                ? 'border-primary text-primary'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Resources Tab */}
+      {currentTab === 'resources' && (
+        <div>
+          {materials && materials.length > 0 ? (
+            <div>
+              {/* Core materials */}
+              {coreMats.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                      💎 Core — {coreMats.length} {coreMats.length === 1 ? 'material' : 'materials'}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {coreMats.map(material => (
+                      <MaterialCard
+                        key={material.id}
+                        material={material}
+                        from="weekly"
+                        week={currentWeek}
+                        isReviewed={userReviewedIds.includes(material.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optional materials */}
+              {optionalMats.length > 0 && (
+                <div className="mb-6">
+                  {coreMats.length > 0 && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm font-medium text-gray-500 bg-gray-50 border border-gray-200 px-3 py-1 rounded-full">
+                        Optional — {optionalMats.length} {optionalMats.length === 1 ? 'material' : 'materials'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {optionalMats.map(material => (
+                      <MaterialCard
+                        key={material.id}
+                        material={material}
+                        from="weekly"
+                        week={currentWeek}
+                        isReviewed={userReviewedIds.includes(material.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reference materials */}
+              {referenceMats.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full">
+                      📌 Reference — {referenceMats.length} {referenceMats.length === 1 ? 'material' : 'materials'}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {referenceMats.map(material => (
+                      <MaterialCard
+                        key={material.id}
+                        material={material}
+                        from="weekly"
+                        week={currentWeek}
+                        isReviewed={userReviewedIds.includes(material.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border p-12 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="text-muted mb-4">No materials for {currentWeek} yet.</p>
+              {isAdmin && (
+                <Link
+                  href="/upload"
+                  className="inline-block px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+                >
+                  Upload Materials
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Objectives Tab */}
+      {currentTab === 'objectives' && (
+        <div className="space-y-4">
+          {isAdmin && (
+            <WeekEditForm
+              week={currentWeek}
+              initialObjectives={weekContent?.objectives ?? ''}
+              initialHomework={weekContent?.homework ?? ''}
+              initialDeliverablePrompt={weekContent?.deliverable_prompt ?? ''}
+            />
+          )}
+
+          {weekContent?.objectives ? (
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h3 className="font-semibold text-gray-900 mb-3">🎯 Learning Objectives</h3>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{weekContent.objectives}</p>
+            </div>
+          ) : !isAdmin ? (
+            <div className="bg-card rounded-xl border border-border p-8 text-center text-muted text-sm">
+              Objectives coming soon...
+            </div>
+          ) : null}
+
+          {weekContent?.homework && (
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h3 className="font-semibold text-gray-900 mb-3">📝 Homework &amp; To-Do</h3>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{weekContent.homework}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Deliverable Tab */}
+      {currentTab === 'deliverable' && (
+        <div className="space-y-4">
+          {weekContent?.deliverable_prompt ? (
+            <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
+              <h3 className="font-semibold text-amber-900 mb-2">📬 Deliverable</h3>
+              <p className="text-sm text-amber-800 leading-relaxed">{weekContent.deliverable_prompt}</p>
+            </div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border p-5">
+              <p className="text-sm text-muted">No deliverable assigned for this week yet.</p>
+            </div>
+          )}
+
+          <DeliverableForm
+            week={currentWeek}
+            existingLink={userDeliverable?.link ?? null}
+            existingSubmittedAt={userDeliverable?.submitted_at ?? null}
+          />
+
+          {/* Admin: all submissions */}
+          {isAdmin && allDeliverables && allDeliverables.length > 0 && (
+            <div className="bg-card rounded-xl border border-border p-6 mt-4">
+              <h3 className="font-semibold text-gray-900 mb-3">
+                All Submissions ({allDeliverables.length})
+              </h3>
+              <div className="space-y-2">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {(allDeliverables as any[]).map(d => {
+                  const profile = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles
+                  return (
+                    <div key={d.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium flex-shrink-0">
+                        {(profile?.full_name || profile?.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700">
+                          {profile?.full_name || profile?.email || 'Unknown'}
+                        </p>
+                        <a
+                          href={d.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline truncate block"
+                        >
+                          {d.link}
+                        </a>
+                      </div>
+                      <span className="text-xs text-muted flex-shrink-0">
+                        {new Date(d.submitted_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
         </div>
       )}
