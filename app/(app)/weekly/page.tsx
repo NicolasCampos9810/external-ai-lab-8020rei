@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import MaterialCard from '@/components/material-card'
 import WeekEditForm from '@/components/week-edit-form'
+import WeekLockToggle from '@/components/week-lock-toggle'
 import DeliverableForm from '@/components/deliverable-form'
 import Link from 'next/link'
 import { WEEKS, WEEK_DESCRIPTIONS } from '@/lib/supabase/types'
@@ -18,10 +20,10 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
   const currentTab = params.tab || 'resources'
   const supabase = await createClient()
 
-  // Round 1: auth (required by all downstream queries)
+  // Round 1: auth
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Round 2: profile + user vote IDs (parallel, both depend only on user)
+  // Round 2: profile + user vote IDs (parallel)
   let isAdmin = false
   let userReviewedIds: string[] = []
   if (user) {
@@ -33,13 +35,13 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
     userReviewedIds = (userVotes ?? []).map(v => v.material_id)
   }
 
-  // Round 3: all independent data for the selected week (parallel)
-  // Replaces sequential queries with parallel ones
+  // Round 3: all independent data (parallel)
   const [
     { data: materials },
     { data: weekContent },
     userDeliverableResult,
     { data: allMaterialWeeks },
+    { data: allWeeksStatus },
   ] = await Promise.all([
     supabase
       .from('material_scores')
@@ -61,23 +63,37 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
           .eq('week', currentWeek)
           .single()
       : Promise.resolve({ data: null }),
-    // One query to count per week — replaces sequential COUNT queries
-    supabase
-      .from('materials')
-      .select('week')
-      .not('week', 'is', null),
+    supabase.from('materials').select('week').not('week', 'is', null),
+    // Fetch enabled status for all weeks (for tab visibility)
+    supabase.from('week_content').select('week, is_enabled'),
   ])
 
   const userDeliverable = userDeliverableResult.data ?? null
 
-  // Count per week in JS (1 query instead of N)
+  // Build enabled-week set — Reference is always enabled as a fallback
+  const enabledWeeks = new Set<string>(
+    (allWeeksStatus ?? [])
+      .filter(w => w.is_enabled)
+      .map(w => w.week)
+  )
+  // Ensure Reference is always accessible
+  enabledWeeks.add('Reference')
+  // Ensure Week 1 is always accessible (safety fallback)
+  enabledWeeks.add('Week 1')
+
+  // Non-admin trying to access a locked week → redirect to Week 1
+  if (!isAdmin && !enabledWeeks.has(currentWeek)) {
+    redirect('/weekly')
+  }
+
+  // Count materials per week in JS (1 query instead of N)
   const weekCounts: Record<string, number> = {}
   WEEKS.forEach(w => { weekCounts[w] = 0 })
   allMaterialWeeks?.forEach(m => {
     if (m.week && weekCounts[m.week] !== undefined) weekCounts[m.week]++
   })
 
-  // Round 4: admin-only data (depends on isAdmin from Round 2)
+  // Round 4: admin-only data
   const { data: allDeliverables } = isAdmin
     ? await supabase
         .from('week_deliverables')
@@ -86,21 +102,29 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         .order('submitted_at', { ascending: false })
     : { data: null }
 
-  // Tier split for Resources tab
+  // Tier grouping
   const coreMats = (materials ?? []).filter(m => m.material_tier === 'core')
   const optionalMats = (materials ?? []).filter(m => m.material_tier === 'optional')
   const referenceMats = (materials ?? []).filter(m => m.material_tier === 'reference')
 
-  // Core-only progress
+  // Progress: core materials (each = 1 pt) + deliverable (= 1 pt)
   const coreTotal = coreMats.length
   const coreReviewed = coreMats.filter(m => userReviewedIds.includes(m.id)).length
   const hasDeliverable = !!userDeliverable
-  const corePct = coreTotal > 0 ? Math.round((coreReviewed / coreTotal) * 100) : 0
-  const weekComplete = coreTotal > 0 && coreReviewed === coreTotal && hasDeliverable
+  const totalPoints = coreTotal + 1  // +1 for deliverable
+  const earnedPoints = coreReviewed + (hasDeliverable ? 1 : 0)
+  const progressPct = totalPoints > 1 ? Math.round((earnedPoints / totalPoints) * 100) : 0
+  const weekComplete = coreTotal > 0 && earnedPoints === totalPoints
 
-  // Week header — prefer DB values, fall back to hardcoded constants
+  // Week header — prefer DB values, fall back to constants
   const weekTitle = weekContent?.title || currentWeek
   const weekDescription = weekContent?.description || WEEK_DESCRIPTIONS[currentWeek] || ''
+  const isCurrentWeekEnabled = weekContent?.is_enabled ?? enabledWeeks.has(currentWeek)
+
+  // Visible tabs for non-admins: only enabled weeks (admins see all with lock indicators)
+  const visibleWeeks = isAdmin
+    ? WEEKS
+    : WEEKS.filter(w => enabledWeeks.has(w))
 
   const TABS = [
     { id: 'resources', label: '📚 Resources' },
@@ -116,13 +140,14 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         <p className="text-muted mt-1">Materials organized by training week</p>
       </div>
 
-      {/* Week Tabs — horizontal scroll on mobile */}
+      {/* Week Tabs */}
       <div className="bg-card rounded-xl border border-border p-2 mb-6">
         <div className="overflow-x-auto">
           <div className="flex gap-2 flex-nowrap min-w-max">
-            {WEEKS.map(week => {
+            {visibleWeeks.map(week => {
               const isActive = week === currentWeek
               const count = weekCounts[week] || 0
+              const isLocked = !enabledWeeks.has(week)
               return (
                 <Link
                   key={week}
@@ -130,9 +155,12 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                   className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-primary text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      : isLocked
+                        ? 'text-gray-400 hover:bg-gray-50 border border-dashed border-gray-300'
+                        : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
+                  {isLocked && <span className="mr-1 text-xs">🔒</span>}
                   {week}
                   <span className={`ml-2 text-xs ${isActive ? 'text-white/80' : 'text-muted'}`}>
                     ({count})
@@ -145,7 +173,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
       </div>
 
       {/* Week Header with progress */}
-      <div className={`rounded-xl border p-5 md:p-6 mb-6 ${
+      <div className={`rounded-xl border p-5 md:p-6 mb-4 ${
         weekComplete
           ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
           : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200'
@@ -162,43 +190,74 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                 : 'No materials for this week yet'}
             </p>
 
-            {/* Core progress bar */}
+            {/* Progress bar: core reviews + deliverable */}
             {coreTotal > 0 && (
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-gray-700">Core progress</span>
-                  <span className="text-xs font-semibold text-gray-900">{coreReviewed}/{coreTotal} reviewed</span>
+                  <span className="text-xs font-medium text-gray-700">Week progress</span>
+                  <span className="text-xs font-semibold text-gray-900">
+                    {earnedPoints}/{totalPoints} complete
+                  </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all ${
-                      weekComplete ? 'bg-green-500' : corePct === 100 ? 'bg-amber-500' : 'bg-primary'
+                      weekComplete ? 'bg-green-500' : progressPct === 100 ? 'bg-amber-500' : 'bg-primary'
                     }`}
-                    style={{ width: `${corePct}%` }}
+                    style={{ width: `${progressPct}%` }}
                   />
+                </div>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="text-xs text-gray-500">
+                    {coreReviewed}/{coreTotal} core reviewed
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span className={`text-xs font-medium ${hasDeliverable ? 'text-green-600' : 'text-gray-400'}`}>
+                    {hasDeliverable ? '✓ deliverable submitted' : 'deliverable pending'}
+                  </span>
                 </div>
                 {weekComplete && (
                   <p className="text-xs text-green-600 font-medium mt-1">✓ Week complete!</p>
                 )}
-                {!weekComplete && corePct === 100 && coreTotal > 0 && (
+                {!weekComplete && coreReviewed === coreTotal && coreTotal > 0 && !hasDeliverable && (
                   <p className="text-xs text-amber-600 font-medium mt-1">
-                    All core reviewed — submit deliverable to complete →
+                    All core reviewed — submit your deliverable to complete this week →
                   </p>
                 )}
               </div>
             )}
           </div>
 
+          {/* Admin controls: lock toggle + add materials */}
           {isAdmin && (
-            <Link
-              href="/upload"
-              className="flex-shrink-0 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
-            >
-              Add Materials
-            </Link>
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
+              {currentWeek !== 'Reference' && (
+                <WeekLockToggle week={currentWeek} isEnabled={isCurrentWeekEnabled} />
+              )}
+              <Link
+                href="/upload"
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors whitespace-nowrap"
+              >
+                Add Materials
+              </Link>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Admin: inline week editor — accessible from any tab */}
+      {isAdmin && (
+        <div className="mb-4">
+          <WeekEditForm
+            week={currentWeek}
+            initialTitle={weekContent?.title ?? ''}
+            initialDescription={weekContent?.description ?? ''}
+            initialObjectives={weekContent?.objectives ?? ''}
+            initialHomework={weekContent?.homework ?? ''}
+            initialDeliverablePrompt={weekContent?.deliverable_prompt ?? ''}
+          />
+        </div>
+      )}
 
       {/* Sub-tabs: Resources / Objectives / Deliverable */}
       <div className="flex gap-1 mb-6 border-b border-border">
@@ -222,7 +281,6 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         <div>
           {materials && materials.length > 0 ? (
             <div>
-              {/* Core materials */}
               {coreMats.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3">
@@ -244,7 +302,6 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                 </div>
               )}
 
-              {/* Optional materials */}
               {optionalMats.length > 0 && (
                 <div className="mb-6">
                   {coreMats.length > 0 && (
@@ -268,7 +325,6 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                 </div>
               )}
 
-              {/* Reference materials */}
               {referenceMats.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
@@ -314,27 +370,16 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
       {/* Objectives Tab */}
       {currentTab === 'objectives' && (
         <div className="space-y-4">
-          {isAdmin && (
-            <WeekEditForm
-              week={currentWeek}
-              initialTitle={weekContent?.title ?? ''}
-              initialDescription={weekContent?.description ?? ''}
-              initialObjectives={weekContent?.objectives ?? ''}
-              initialHomework={weekContent?.homework ?? ''}
-              initialDeliverablePrompt={weekContent?.deliverable_prompt ?? ''}
-            />
-          )}
-
           {weekContent?.objectives ? (
             <div className="bg-card rounded-xl border border-border p-6">
               <h3 className="font-semibold text-gray-900 mb-3">🎯 Learning Objectives</h3>
               <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{weekContent.objectives}</p>
             </div>
-          ) : !isAdmin ? (
+          ) : (
             <div className="bg-card rounded-xl border border-border p-8 text-center text-muted text-sm">
-              Objectives coming soon...
+              {isAdmin ? 'Use the Edit Week panel above to add objectives.' : 'Objectives coming soon...'}
             </div>
-          ) : null}
+          )}
 
           {weekContent?.homework && (
             <div className="bg-card rounded-xl border border-border p-6">
@@ -355,7 +400,9 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
             </div>
           ) : (
             <div className="bg-card rounded-xl border border-border p-5">
-              <p className="text-sm text-muted">No deliverable assigned for this week yet.</p>
+              <p className="text-sm text-muted">
+                {isAdmin ? 'Use the Edit Week panel above to add a deliverable prompt.' : 'No deliverable assigned for this week yet.'}
+              </p>
             </div>
           )}
 
