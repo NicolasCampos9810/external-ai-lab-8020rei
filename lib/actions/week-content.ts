@@ -47,6 +47,38 @@ export async function updateWeekContent(
   return { success: true }
 }
 
+// Toggle a week's visibility (admin only) — Reference is always enabled and cannot be locked
+export async function toggleWeekEnabled(week: string, enabled: boolean) {
+  if (week === 'Reference') return { error: 'Reference cannot be locked' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Admin access required' }
+  }
+
+  const { error } = await supabase
+    .from('week_content')
+    .upsert(
+      { week, is_enabled: enabled, updated_at: new Date().toISOString(), updated_by: user.id },
+      { onConflict: 'week' }
+    )
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/weekly')
+  return { success: true }
+}
+
 // Submit or update a user's deliverable link for a week (any authenticated user)
 export async function submitDeliverable(week: string, link: string) {
   const supabase = await createClient()

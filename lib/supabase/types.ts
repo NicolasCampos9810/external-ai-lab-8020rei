@@ -75,6 +75,7 @@ export interface WeekContent {
   objectives: string | null
   homework: string | null
   deliverable_prompt: string | null
+  is_enabled: boolean
   updated_at: string
   updated_by: string | null
 }
