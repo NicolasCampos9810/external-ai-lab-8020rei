@@ -13,7 +13,7 @@ export interface ParsedMaterial {
   initial_score?: number
   initial_quality?: number
   initial_relevance?: number
-  material_tier?: 'core' | 'optional' | 'reference'
+  material_tier?: 'must_read' | 'core' | 'optional' | 'reference'
   justification_for_assignment?: string
   week?: string
   estimated_time?: string
