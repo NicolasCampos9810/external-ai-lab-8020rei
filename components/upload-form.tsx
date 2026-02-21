@@ -130,25 +130,19 @@ function parseRowsToMaterials(
         }
       }
 
-      // Parse material_tier field
-      // Accepts: 'core', 'essential', 'yes', 'true', '1', 'must read' → 'core'
-      //          'reference' → 'reference'
-      //          anything else → 'optional'
-      const tierRaw = get('material_tier').toLowerCase()
-      let material_tier: 'core' | 'optional' | 'reference' = 'optional'
-      if (
-        tierRaw === 'core' ||
-        tierRaw === 'yes' ||
-        tierRaw === 'true' ||
-        tierRaw === '1' ||
-        tierRaw.includes('essential') ||
-        tierRaw.includes('must') ||
-        tierRaw.includes('required') ||
-        tierRaw.includes('priority') ||
-        tierRaw.includes('highly valuable')
-      ) {
+      // Parse material_tier field — preserve exact tiers from the spreadsheet
+      // must_read / must-read / must read → 'must_read'
+      // core → 'core'
+      // reference / ref → 'reference'
+      // anything else → 'optional'
+      const tierRaw = get('material_tier').toLowerCase().trim()
+      const tierNorm = tierRaw.replace(/[\s_-]+/g, '')  // "must_read" / "must read" → "mustread"
+      let material_tier: 'must_read' | 'core' | 'optional' | 'reference' = 'optional'
+      if (tierNorm === 'mustread') {
+        material_tier = 'must_read'
+      } else if (tierNorm === 'core') {
         material_tier = 'core'
-      } else if (tierRaw === 'reference' || tierRaw.includes('ref')) {
+      } else if (tierNorm === 'reference' || tierNorm === 'ref') {
         material_tier = 'reference'
       }
 
