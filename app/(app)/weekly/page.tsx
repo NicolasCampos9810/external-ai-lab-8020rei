@@ -27,13 +27,17 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
   // Round 2: profile + user vote IDs (parallel)
   let isAdmin = false
   let userReviewedIds: string[] = []
+  let userCommentedIds: string[] = []
   if (user) {
     const [{ data: profile }, { data: userVotes }] = await Promise.all([
       supabase.from('profiles').select('role').eq('id', user.id).single(),
-      supabase.from('votes').select('material_id').eq('user_id', user.id),
+      supabase.from('votes').select('material_id, comment').eq('user_id', user.id),
     ])
     isAdmin = profile?.role === 'admin'
     userReviewedIds = (userVotes ?? []).map(v => v.material_id)
+    userCommentedIds = (userVotes ?? [])
+      .filter(v => v.comment && v.comment.trim().length > 0)
+      .map(v => v.material_id)
   }
 
   // Round 3: all independent data (parallel)
@@ -132,15 +136,15 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
     return normalized === 'reference'
   })
 
-  // Progress: must_read + core materials (each = 1 pt) + deliverable (= 1 pt)
+  // Progress: reading required materials (must_read + core, with comment) = 60%, deliverable = 40%
   const requiredMats = [...mustReadMats, ...coreMats]
   const requiredTotal = requiredMats.length
-  const requiredReviewed = requiredMats.filter(m => userReviewedIds.includes(m.id)).length
+  const requiredCommented = requiredMats.filter(m => userCommentedIds.includes(m.id)).length
   const hasDeliverable = !!userDeliverable
-  const totalPoints = requiredTotal + 1  // +1 for deliverable
-  const earnedPoints = requiredReviewed + (hasDeliverable ? 1 : 0)
-  const progressPct = totalPoints > 1 ? Math.round((earnedPoints / totalPoints) * 100) : 0
-  const weekComplete = requiredTotal > 0 && earnedPoints === totalPoints
+  const readingPct = requiredTotal > 0 ? (requiredCommented / requiredTotal) * 60 : 0
+  const deliverablePct = hasDeliverable ? 40 : 0
+  const progressPct = Math.round(readingPct + deliverablePct)
+  const weekComplete = requiredTotal > 0 && requiredCommented === requiredTotal && hasDeliverable
 
   // Week header — prefer DB values, fall back to constants
   const weekTitle = weekContent?.title || currentWeek
@@ -221,7 +225,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium text-gray-700">Week progress</span>
                   <span className="text-xs font-semibold text-gray-900">
-                    {earnedPoints}/{totalPoints} complete
+                    {progressPct}% complete
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -234,7 +238,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                 </div>
                 <div className="flex items-center gap-3 mt-1.5">
                   <span className="text-xs text-gray-500">
-                    {requiredReviewed}/{requiredTotal} required reviewed
+                    {requiredCommented}/{requiredTotal} required read
                   </span>
                   <span className="text-gray-300">·</span>
                   <span className={`text-xs font-medium ${hasDeliverable ? 'text-green-600' : 'text-gray-400'}`}>
@@ -244,9 +248,9 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
                 {weekComplete && (
                   <p className="text-xs text-green-600 font-medium mt-1">✓ Week complete!</p>
                 )}
-                {!weekComplete && requiredReviewed === requiredTotal && requiredTotal > 0 && !hasDeliverable && (
+                {!weekComplete && requiredCommented === requiredTotal && requiredTotal > 0 && !hasDeliverable && (
                   <p className="text-xs text-amber-600 font-medium mt-1">
-                    All required materials reviewed — go to Objectives to submit your deliverable →
+                    All required materials read — go to Objectives to submit your deliverable →
                   </p>
                 )}
               </div>

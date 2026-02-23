@@ -103,22 +103,40 @@ export default async function DashboardPage() {
   // User progress: per-week Core material counts + user's reviewed IDs + deliverables
   const [{ data: allMaterialsWeeks }, { data: userVotes }, { data: userDeliverables }] = await Promise.all([
     supabase.from('materials').select('id, week, material_tier').not('week', 'is', null),
-    supabase.from('votes').select('material_id').eq('user_id', user!.id),
+    supabase.from('votes').select('material_id, comment').eq('user_id', user!.id),
     supabase.from('week_deliverables').select('week').eq('user_id', user!.id),
   ])
+  // userReviewedIds: any vote (used for MaterialCard "reviewed" badge)
   const userReviewedIds = new Set((userVotes ?? []).map(v => v.material_id))
+  // userCommentedIds: votes with a non-empty comment (used for progress tracking)
+  const userCommentedIds = new Set(
+    (userVotes ?? [])
+      .filter(v => v.comment && v.comment.trim().length > 0)
+      .map(v => v.material_id)
+  )
   const submittedWeeks = new Set((userDeliverables ?? []).map(d => d.week))
 
-  // Compute per-week progress — only Core materials count toward progress
+  // Helper: normalize tier strings (case-insensitive, space-insensitive)
+  const normalizeTier = (tier: string | null | undefined): string => {
+    if (!tier) return ''
+    return tier.toLowerCase().replace(/[\s_-]+/g, '')
+  }
+
+  // Compute per-week progress — must_read + core materials, comment required, 60% reading / 40% deliverable
   const weekProgress = WEEKS.map(week => {
     const weekMaterials = (allMaterialsWeeks ?? []).filter(m => m.week === week)
-    const coreMaterials = weekMaterials.filter(m => m.material_tier === 'core')
-    const total = coreMaterials.length
-    const reviewed = coreMaterials.filter(m => userReviewedIds.has(m.id)).length
+    const requiredMaterials = weekMaterials.filter(m => {
+      const t = normalizeTier(m.material_tier)
+      return t === 'mustread' || t === 'core'
+    })
+    const total = requiredMaterials.length
+    const commented = requiredMaterials.filter(m => userCommentedIds.has(m.id)).length
     const hasDeliverable = submittedWeeks.has(week)
-    // Week complete = all Core reviewed + deliverable submitted (if any core materials exist)
-    const complete = total > 0 && reviewed === total && hasDeliverable
-    return { week, total, reviewed, pct: total > 0 ? Math.round((reviewed / total) * 100) : 0, hasDeliverable, complete }
+    const readingPct = total > 0 ? (commented / total) * 60 : 0
+    const deliverablePct = hasDeliverable ? 40 : 0
+    const pct = Math.round(readingPct + deliverablePct)
+    const complete = total > 0 && commented === total && hasDeliverable
+    return { week, total, commented, pct, hasDeliverable, complete }
   }).filter(w => w.total > 0)
 
   return (
@@ -260,14 +278,14 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">📊 Your Progress</h2>
-              <p className="text-xs text-muted">Core materials reviewed + deliverable submitted per week</p>
+              <p className="text-xs text-muted">Required materials read (with comment) + deliverable per week</p>
             </div>
             <Link href="/weekly" className="text-xs text-primary hover:text-primary-dark font-medium">
               Continue training →
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {weekProgress.map(({ week, total, reviewed, pct, hasDeliverable, complete }) => (
+            {weekProgress.map(({ week, total, commented, pct, hasDeliverable, complete }) => (
               <Link
                 key={week}
                 href={`/weekly?week=${encodeURIComponent(week)}`}
@@ -292,8 +310,8 @@ export default async function DashboardPage() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-muted">{reviewed}/{total} core reviewed</p>
-                {total > 0 && reviewed === total && !hasDeliverable && (
+                <p className="text-xs text-muted">{commented}/{total} required read</p>
+                {total > 0 && commented === total && !hasDeliverable && (
                   <p className="text-xs text-amber-600 font-medium mt-1">Submit deliverable to complete →</p>
                 )}
               </Link>
