@@ -5,6 +5,7 @@ import WeekEditForm from '@/components/week-edit-form'
 import WeekLockToggle from '@/components/week-lock-toggle'
 import DeliverableForm from '@/components/deliverable-form'
 import MemberResourcesSection from '@/components/member-resources-section'
+import WeekSessionsSection from '@/components/week-sessions-section'
 import Link from 'next/link'
 import { WEEKS, WEEK_DESCRIPTIONS } from '@/lib/supabase/types'
 
@@ -45,6 +46,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
     { data: allWeeksStatus },
     { data: allDeliverables },
     { data: memberResources },
+    { data: weekSessions },
   ] = await Promise.all([
     supabase
       .from('material_scores')
@@ -81,6 +83,13 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
       .select('*, adder:profiles(full_name, email)')
       .eq('week', currentWeek)
       .order('created_at', { ascending: false }),
+    // Session recordings for this week
+    supabase
+      .from('week_sessions')
+      .select('*')
+      .eq('week', currentWeek)
+      .order('session_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true }),
   ])
 
   const userDeliverable = userDeliverableResult.data ?? null
@@ -426,6 +435,13 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
       {/* Objectives Tab — includes deliverable submission and community submissions */}
       {currentTab === 'objectives' && (
         <div className="space-y-4">
+          {/* Session Recordings */}
+          <WeekSessionsSection
+            week={currentWeek}
+            sessions={weekSessions ?? []}
+            isAdmin={isAdmin}
+          />
+
           {/* Learning Objectives */}
           {weekContent?.objectives ? (
             <div className="bg-card rounded-xl border border-border p-6">
