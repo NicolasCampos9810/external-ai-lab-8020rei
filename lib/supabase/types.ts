@@ -81,6 +81,17 @@ export interface WeekContent {
   updated_by: string | null
 }
 
+export interface MemberResource {
+  id: string
+  week: string
+  title: string
+  link: string
+  description: string | null
+  added_by: string | null
+  created_at: string
+  adder?: Profile
+}
+
 export interface WeekDeliverable {
   id: string
   user_id: string

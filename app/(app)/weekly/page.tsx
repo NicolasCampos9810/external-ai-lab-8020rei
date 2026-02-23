@@ -4,6 +4,7 @@ import MaterialCard from '@/components/material-card'
 import WeekEditForm from '@/components/week-edit-form'
 import WeekLockToggle from '@/components/week-lock-toggle'
 import DeliverableForm from '@/components/deliverable-form'
+import MemberResourcesSection from '@/components/member-resources-section'
 import Link from 'next/link'
 import { WEEKS, WEEK_DESCRIPTIONS } from '@/lib/supabase/types'
 
@@ -43,6 +44,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
     { data: allMaterialWeeks },
     { data: allWeeksStatus },
     { data: allDeliverables },
+    { data: memberResources },
   ] = await Promise.all([
     supabase
       .from('material_scores')
@@ -73,6 +75,12 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
       .select('*, profiles(full_name, email)')
       .eq('week', currentWeek)
       .order('submitted_at', { ascending: false }),
+    // Member-submitted resources for this week
+    supabase
+      .from('member_resources')
+      .select('*, adder:profiles(full_name, email)')
+      .eq('week', currentWeek)
+      .order('created_at', { ascending: false }),
   ])
 
   const userDeliverable = userDeliverableResult.data ?? null
@@ -404,6 +412,14 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
               )}
             </div>
           )}
+
+          {/* Members Resources — always visible at the bottom of the Resources tab */}
+          <MemberResourcesSection
+            week={currentWeek}
+            resources={memberResources ?? []}
+            userId={user?.id ?? null}
+            isAdmin={isAdmin}
+          />
         </div>
       )}
 
