@@ -164,6 +164,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
   const TABS = [
     { id: 'resources', label: '📚 Resources' },
     { id: 'objectives', label: '🎯 Objectives' },
+    { id: 'sessions', label: '🎬 Sessions' },
   ] as const
 
   return (
@@ -432,16 +433,18 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
         </div>
       )}
 
+      {/* Sessions Tab */}
+      {currentTab === 'sessions' && (
+        <WeekSessionsSection
+          week={currentWeek}
+          sessions={weekSessions ?? []}
+          isAdmin={isAdmin}
+        />
+      )}
+
       {/* Objectives Tab — includes deliverable submission and community submissions */}
       {currentTab === 'objectives' && (
         <div className="space-y-4">
-          {/* Session Recordings */}
-          <WeekSessionsSection
-            week={currentWeek}
-            sessions={weekSessions ?? []}
-            isAdmin={isAdmin}
-          />
-
           {/* Learning Objectives */}
           {weekContent?.objectives ? (
             <div className="bg-card rounded-xl border border-border p-6">
