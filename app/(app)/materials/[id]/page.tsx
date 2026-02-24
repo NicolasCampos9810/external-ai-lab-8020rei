@@ -91,11 +91,12 @@ export default async function MaterialDetailPage({ params, searchParams }: Props
     : { data: [] }
 
   // Group replies by vote_id
+  type ReplyRow = NonNullable<typeof allReplies>[number]
   const repliesByVote = (allReplies || []).reduce((acc, r) => {
     if (!acc[r.vote_id]) acc[r.vote_id] = []
     acc[r.vote_id].push(r)
     return acc
-  }, {} as Record<string, typeof allReplies>)
+  }, {} as Record<string, ReplyRow[]>)
 
   // Calculate reaction counts and user reactions per vote
   const reactionsByVote = (reactions || []).reduce((acc, r) => {
