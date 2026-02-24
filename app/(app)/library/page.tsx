@@ -37,7 +37,10 @@ export default async function LibraryPage({ searchParams }: Props) {
   // Fetch all distinct categories from the DB so the filter dropdown always matches stored values
   const { data: categoryRows } = await supabase.from('materials').select('categories')
   const dbCategories = [...new Set(
-    (categoryRows ?? []).flatMap(m => (m.categories as string[] | null) ?? []).filter(Boolean)
+    (categoryRows ?? [])
+      .flatMap(m => (m.categories as string[] | null) ?? [])
+      .flatMap(c => c.split('/').map(s => s.trim()))  // split any remaining slash-joined entries
+      .filter(Boolean)
   )].sort()
 
   let query = supabase.from('material_scores').select('*')

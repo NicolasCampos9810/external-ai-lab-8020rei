@@ -108,7 +108,7 @@ function parseRowsToMaterials(
       const description = get('description')
       const categoryRaw = get('categories')
       const categories = categoryRaw
-        ? categoryRaw.split(',').map(c => normalizeCategory(c)).filter(Boolean)
+        ? categoryRaw.split(/[,/]/).map(c => normalizeCategory(c)).filter(Boolean)
         : []
 
       // Parse scores - prioritize quality + relevance, fallback to average score
