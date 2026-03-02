@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { deleteUser, updateUserRole } from '@/lib/actions/profiles'
+import { deleteUser, updateUserRole, createMissingProfile } from '@/lib/actions/profiles'
+import type { OrphanedUser } from '@/lib/actions/profiles'
 import type { Profile, MaterialWithScores } from '@/lib/supabase/types'
 import { WEEKS } from '@/lib/supabase/types'
 
@@ -24,11 +25,12 @@ interface ViewRecord {
 interface AdminPanelProps {
   users: Profile[]
   materials: MaterialWithScores[]
+  orphanedUsers: OrphanedUser[]
   progressData: ProgressRawData
   engagementData: { views: ViewRecord[] }
 }
 
-export default function AdminPanel({ users, materials, progressData, engagementData }: AdminPanelProps) {
+export default function AdminPanel({ users, materials, orphanedUsers, progressData, engagementData }: AdminPanelProps) {
   const [tab, setTab] = useState<'users' | 'materials' | 'progress' | 'engagement'>('users')
 
   return (
@@ -42,6 +44,11 @@ export default function AdminPanel({ users, materials, progressData, engagementD
           }`}
         >
           Users ({users.length})
+          {orphanedUsers.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+              {orphanedUsers.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setTab('materials')}
@@ -70,7 +77,7 @@ export default function AdminPanel({ users, materials, progressData, engagementD
       </div>
 
       {tab === 'users' ? (
-        <UsersTable users={users} />
+        <UsersTable users={users} orphanedUsers={orphanedUsers} />
       ) : tab === 'materials' ? (
         <MaterialsTable materials={materials} />
       ) : tab === 'progress' ? (
@@ -82,7 +89,7 @@ export default function AdminPanel({ users, materials, progressData, engagementD
   )
 }
 
-function UsersTable({ users }: { users: Profile[] }) {
+function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers: OrphanedUser[] }) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -113,13 +120,69 @@ function UsersTable({ users }: { users: Profile[] }) {
     }
   }
 
+  async function handleCreateProfile(u: OrphanedUser) {
+    setLoadingId(u.id + '-fix')
+    setError(null)
+    const result = await createMissingProfile(u.id, u.email, u.full_name)
+    setLoadingId(null)
+    if (result.error) {
+      setError(result.error)
+    } else {
+      router.refresh()
+    }
+  }
+
   return (
-    <div>
+    <div className="space-y-6">
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
         </div>
       )}
+
+      {/* Orphaned users — registered in auth but missing a profile */}
+      {orphanedUsers.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-5 py-3 border-b border-amber-200 flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <span className="text-sm font-semibold text-amber-800">
+              {orphanedUsers.length} registered {orphanedUsers.length === 1 ? 'user' : 'users'} without a profile
+            </span>
+            <span className="text-xs text-amber-600">— these users signed up but don&apos;t appear in the dashboard</span>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-amber-200">
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Email</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Name</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Registered</th>
+                <th className="text-right px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-100">
+              {orphanedUsers.map(u => (
+                <tr key={u.id} className="hover:bg-amber-100/40">
+                  <td className="px-5 py-3 text-sm text-gray-800">{u.email}</td>
+                  <td className="px-5 py-3 text-sm text-muted">{u.full_name || '—'}</td>
+                  <td className="px-5 py-3 text-sm text-muted">{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button
+                      onClick={() => handleCreateProfile(u)}
+                      disabled={loadingId === u.id + '-fix'}
+                      className="text-xs text-amber-700 hover:text-amber-900 font-medium disabled:opacity-50 border border-amber-300 hover:border-amber-500 px-2.5 py-1 rounded-md transition-colors"
+                    >
+                      {loadingId === u.id + '-fix' ? 'Creating...' : 'Create profile'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full">
           <thead>
