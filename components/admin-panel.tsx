@@ -93,6 +93,8 @@ function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers:
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; email: string } | null>(null)
+  const [deleteInput, setDeleteInput] = useState('')
 
   async function toggleRole(userId: string, currentRole: string) {
     const newRole = currentRole === 'admin' ? 'user' : 'admin'
@@ -107,12 +109,14 @@ function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers:
     }
   }
 
-  async function handleDelete(userId: string, userEmail: string) {
-    if (!confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) return
-    setLoadingId(userId + '-delete')
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setLoadingId(deleteTarget.id + '-delete')
     setError(null)
-    const result = await deleteUser(userId)
+    const result = await deleteUser(deleteTarget.id)
     setLoadingId(null)
+    setDeleteTarget(null)
+    setDeleteInput('')
     if (result.error) {
       setError(result.error)
     } else {
@@ -137,6 +141,54 @@ function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers:
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl border border-border w-full max-w-md mx-4 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Delete user</h3>
+                <p className="text-sm text-muted mt-0.5">
+                  This will permanently remove <span className="font-medium text-gray-800">{deleteTarget.email}</span> and all their data. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Type <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-gray-900">{deleteTarget.email}</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && deleteInput === deleteTarget.email) confirmDelete() }}
+              placeholder={deleteTarget.email}
+              autoFocus
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteInput('') }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 border border-border rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleteInput !== deleteTarget.email || !!loadingId}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {loadingId ? 'Deleting...' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -234,8 +286,8 @@ function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers:
                       {loadingId === user.id + '-role' ? 'Saving...' : `Make ${user.role === 'admin' ? 'User' : 'Admin'}`}
                     </button>
                     <button
-                      onClick={() => handleDelete(user.id, user.email)}
-                      disabled={loadingId === user.id + '-delete'}
+                      onClick={() => { setDeleteTarget({ id: user.id, email: user.email }); setDeleteInput('') }}
+                      disabled={!!loadingId}
                       className="text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
                     >
                       {loadingId === user.id + '-delete' ? 'Deleting...' : 'Delete'}
