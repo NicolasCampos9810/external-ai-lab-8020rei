@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 export async function updateUserRole(userId: string, newRole: 'admin' | 'user') {
@@ -77,11 +78,65 @@ export async function deleteUser(userId: string) {
     return { error: `Failed to delete profile: ${profileError.message}` }
   }
 
-  // Note: Deleting from auth.users requires admin privileges
-  // This needs to be done via Supabase Admin API or SQL
-  // For now, we'll just delete the profile
+  // Also delete the user from auth.users via admin client
+  const admin = createAdminClient()
+  await admin.auth.admin.deleteUser(userId)
 
   revalidatePath('/admin')
 
+  return { success: true }
+}
+
+export async function getOrphanedAuthUsers() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated', orphaned: [] as OrphanedUser[] }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Admin access required', orphaned: [] as OrphanedUser[] }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin.auth.admin.listUsers({ perPage: 1000 })
+  if (error) return { error: error.message, orphaned: [] as OrphanedUser[] }
+
+  const { data: profiles } = await supabase.from('profiles').select('id')
+  const profileIds = new Set((profiles ?? []).map((p: { id: string }) => p.id))
+
+  const orphaned: OrphanedUser[] = data.users
+    .filter(u => !profileIds.has(u.id))
+    .map(u => ({
+      id: u.id,
+      email: u.email ?? '',
+      full_name: (u.user_metadata?.full_name || u.user_metadata?.name || null) as string | null,
+      created_at: u.created_at,
+    }))
+
+  return { orphaned }
+}
+
+export interface OrphanedUser {
+  id: string
+  email: string
+  full_name: string | null
+  created_at: string
+}
+
+export async function createMissingProfile(userId: string, email: string, fullName: string | null) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'Admin access required' }
+
+  const { error } = await supabase.from('profiles').insert({
+    id: userId,
+    email,
+    full_name: fullName,
+  })
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin')
   return { success: true }
 }

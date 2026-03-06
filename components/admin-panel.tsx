@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { deleteUser, updateUserRole } from '@/lib/actions/profiles'
+import { deleteUser, updateUserRole, createMissingProfile } from '@/lib/actions/profiles'
+import type { OrphanedUser } from '@/lib/actions/profiles'
 import type { Profile, MaterialWithScores } from '@/lib/supabase/types'
 import { WEEKS } from '@/lib/supabase/types'
 
@@ -24,11 +25,12 @@ interface ViewRecord {
 interface AdminPanelProps {
   users: Profile[]
   materials: MaterialWithScores[]
+  orphanedUsers: OrphanedUser[]
   progressData: ProgressRawData
   engagementData: { views: ViewRecord[] }
 }
 
-export default function AdminPanel({ users, materials, progressData, engagementData }: AdminPanelProps) {
+export default function AdminPanel({ users, materials, orphanedUsers, progressData, engagementData }: AdminPanelProps) {
   const [tab, setTab] = useState<'users' | 'materials' | 'progress' | 'engagement'>('users')
 
   return (
@@ -42,6 +44,11 @@ export default function AdminPanel({ users, materials, progressData, engagementD
           }`}
         >
           Users ({users.length})
+          {orphanedUsers.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+              {orphanedUsers.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setTab('materials')}
@@ -70,7 +77,7 @@ export default function AdminPanel({ users, materials, progressData, engagementD
       </div>
 
       {tab === 'users' ? (
-        <UsersTable users={users} />
+        <UsersTable users={users} orphanedUsers={orphanedUsers} />
       ) : tab === 'materials' ? (
         <MaterialsTable materials={materials} />
       ) : tab === 'progress' ? (
@@ -82,10 +89,12 @@ export default function AdminPanel({ users, materials, progressData, engagementD
   )
 }
 
-function UsersTable({ users }: { users: Profile[] }) {
+function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers: OrphanedUser[] }) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; email: string } | null>(null)
+  const [deleteInput, setDeleteInput] = useState('')
 
   async function toggleRole(userId: string, currentRole: string) {
     const newRole = currentRole === 'admin' ? 'user' : 'admin'
@@ -100,11 +109,25 @@ function UsersTable({ users }: { users: Profile[] }) {
     }
   }
 
-  async function handleDelete(userId: string, userEmail: string) {
-    if (!confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) return
-    setLoadingId(userId + '-delete')
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setLoadingId(deleteTarget.id + '-delete')
     setError(null)
-    const result = await deleteUser(userId)
+    const result = await deleteUser(deleteTarget.id)
+    setLoadingId(null)
+    setDeleteTarget(null)
+    setDeleteInput('')
+    if (result.error) {
+      setError(result.error)
+    } else {
+      router.refresh()
+    }
+  }
+
+  async function handleCreateProfile(u: OrphanedUser) {
+    setLoadingId(u.id + '-fix')
+    setError(null)
+    const result = await createMissingProfile(u.id, u.email, u.full_name)
     setLoadingId(null)
     if (result.error) {
       setError(result.error)
@@ -114,12 +137,104 @@ function UsersTable({ users }: { users: Profile[] }) {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
         </div>
       )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl border border-border w-full max-w-md mx-4 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Delete user</h3>
+                <p className="text-sm text-muted mt-0.5">
+                  This will permanently remove <span className="font-medium text-gray-800">{deleteTarget.email}</span> and all their data. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Type <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-gray-900">{deleteTarget.email}</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && deleteInput === deleteTarget.email) confirmDelete() }}
+              placeholder={deleteTarget.email}
+              autoFocus
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteInput('') }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 border border-border rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleteInput !== deleteTarget.email || !!loadingId}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {loadingId ? 'Deleting...' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Orphaned users — registered in auth but missing a profile */}
+      {orphanedUsers.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-5 py-3 border-b border-amber-200 flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <span className="text-sm font-semibold text-amber-800">
+              {orphanedUsers.length} registered {orphanedUsers.length === 1 ? 'user' : 'users'} without a profile
+            </span>
+            <span className="text-xs text-amber-600">— these users signed up but don&apos;t appear in the dashboard</span>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-amber-200">
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Email</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Name</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Registered</th>
+                <th className="text-right px-5 py-2.5 text-xs font-medium text-amber-700 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-100">
+              {orphanedUsers.map(u => (
+                <tr key={u.id} className="hover:bg-amber-100/40">
+                  <td className="px-5 py-3 text-sm text-gray-800">{u.email}</td>
+                  <td className="px-5 py-3 text-sm text-muted">{u.full_name || '—'}</td>
+                  <td className="px-5 py-3 text-sm text-muted">{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button
+                      onClick={() => handleCreateProfile(u)}
+                      disabled={loadingId === u.id + '-fix'}
+                      className="text-xs text-amber-700 hover:text-amber-900 font-medium disabled:opacity-50 border border-amber-300 hover:border-amber-500 px-2.5 py-1 rounded-md transition-colors"
+                    >
+                      {loadingId === u.id + '-fix' ? 'Creating...' : 'Create profile'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full">
           <thead>
@@ -171,8 +286,8 @@ function UsersTable({ users }: { users: Profile[] }) {
                       {loadingId === user.id + '-role' ? 'Saving...' : `Make ${user.role === 'admin' ? 'User' : 'Admin'}`}
                     </button>
                     <button
-                      onClick={() => handleDelete(user.id, user.email)}
-                      disabled={loadingId === user.id + '-delete'}
+                      onClick={() => { setDeleteTarget({ id: user.id, email: user.email }); setDeleteInput('') }}
+                      disabled={!!loadingId}
                       className="text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
                     >
                       {loadingId === user.id + '-delete' ? 'Deleting...' : 'Delete'}

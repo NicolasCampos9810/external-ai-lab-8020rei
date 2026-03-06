@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AdminPanel from '@/components/admin-panel'
+import { getOrphanedAuthUsers } from '@/lib/actions/profiles'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -31,17 +32,19 @@ export default async function AdminPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
-  // Progress tracking data + engagement views (all in parallel)
+  // Progress tracking data + engagement views + orphaned auth users (all in parallel)
   const [
     { data: progressMaterials },
     { data: allVotes },
     { data: allDeliverables },
     { data: allViews },
+    { orphaned: orphanedUsers },
   ] = await Promise.all([
     supabase.from('materials').select('id, week, material_tier, title').not('week', 'is', null),
     supabase.from('votes').select('user_id, material_id, comment'),
     supabase.from('week_deliverables').select('user_id, week'),
     supabase.from('material_views').select('user_id, material_id, material_week, source, viewed_at'),
+    getOrphanedAuthUsers(),
   ])
 
   return (
@@ -54,6 +57,7 @@ export default async function AdminPage() {
       <AdminPanel
         users={users || []}
         materials={materials || []}
+        orphanedUsers={orphanedUsers || []}
         progressData={{
           materials: progressMaterials || [],
           votes: allVotes || [],
