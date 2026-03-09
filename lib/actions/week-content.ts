@@ -79,6 +79,36 @@ export async function toggleWeekEnabled(week: string, enabled: boolean) {
   return { success: true }
 }
 
+// Toggle whether submissions are closed for a week (admin only)
+export async function toggleWeekSubmissions(week: string, closed: boolean) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Admin access required' }
+  }
+
+  const { error } = await supabase
+    .from('week_content')
+    .upsert(
+      { week, submissions_closed: closed, updated_at: new Date().toISOString(), updated_by: user.id },
+      { onConflict: 'week' }
+    )
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/weekly')
+  return { success: true }
+}
+
 // Submit or update a user's deliverable for a week (any authenticated user)
 // Accepts a link, notes, or both — at least one must be provided
 export async function submitDeliverable(week: string, link: string, notes?: string) {
@@ -86,6 +116,17 @@ export async function submitDeliverable(week: string, link: string, notes?: stri
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return { error: 'Not authenticated' }
+
+  // Server-side guard: check if submissions are closed for this week
+  const { data: weekContent } = await supabase
+    .from('week_content')
+    .select('submissions_closed')
+    .eq('week', week)
+    .single()
+
+  if (weekContent?.submissions_closed) {
+    return { error: 'Submissions are closed for this week' }
+  }
 
   const trimmedLink = link.trim()
   const trimmedNotes = notes?.trim() ?? ''
