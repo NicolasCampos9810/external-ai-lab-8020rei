@@ -220,13 +220,22 @@ function UsersTable({ users, orphanedUsers }: { users: Profile[]; orphanedUsers:
                   <td className="px-5 py-3 text-sm text-muted">{u.full_name || '—'}</td>
                   <td className="px-5 py-3 text-sm text-muted">{new Date(u.created_at).toLocaleDateString()}</td>
                   <td className="px-5 py-3 text-right">
-                    <button
-                      onClick={() => handleCreateProfile(u)}
-                      disabled={loadingId === u.id + '-fix'}
-                      className="text-xs text-amber-700 hover:text-amber-900 font-medium disabled:opacity-50 border border-amber-300 hover:border-amber-500 px-2.5 py-1 rounded-md transition-colors"
-                    >
-                      {loadingId === u.id + '-fix' ? 'Creating...' : 'Create profile'}
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleCreateProfile(u)}
+                        disabled={!!loadingId}
+                        className="text-xs text-amber-700 hover:text-amber-900 font-medium disabled:opacity-50 border border-amber-300 hover:border-amber-500 px-2.5 py-1 rounded-md transition-colors"
+                      >
+                        {loadingId === u.id + '-fix' ? 'Creating...' : 'Create profile'}
+                      </button>
+                      <button
+                        onClick={() => { setDeleteTarget({ id: u.id, email: u.email }); setDeleteInput('') }}
+                        disabled={!!loadingId}
+                        className="text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
