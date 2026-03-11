@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import MaterialCard from '@/components/material-card'
 import WeekEditForm from '@/components/week-edit-form'
 import WeekLockToggle from '@/components/week-lock-toggle'
+import WeekSubmissionsToggle from '@/components/week-submissions-toggle'
 import DeliverableForm from '@/components/deliverable-form'
 import MemberResourcesSection from '@/components/member-resources-section'
 import WeekSessionsSection from '@/components/week-sessions-section'
@@ -172,6 +173,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
   const weekTitle = weekContent?.title || currentWeek
   const weekDescription = weekContent?.description || WEEK_DESCRIPTIONS[currentWeek] || ''
   const isCurrentWeekEnabled = weekContent?.is_enabled ?? enabledWeeks.has(currentWeek)
+  const isSubmissionsClosed = weekContent?.submissions_closed ?? false
 
   // Visible tabs for non-admins: only enabled weeks (admins see all with lock indicators)
   const visibleWeeks = isAdmin
@@ -280,11 +282,14 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
             )}
           </div>
 
-          {/* Admin controls: lock toggle + add materials */}
+          {/* Admin controls: lock toggle + submissions toggle + add materials */}
           {isAdmin && (
             <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
               {currentWeek !== 'Reference' && (
-                <WeekLockToggle week={currentWeek} isEnabled={isCurrentWeekEnabled} />
+                <>
+                  <WeekLockToggle week={currentWeek} isEnabled={isCurrentWeekEnabled} />
+                  <WeekSubmissionsToggle week={currentWeek} submissionsClosed={isSubmissionsClosed} />
+                </>
               )}
               <Link
                 href="/upload"
@@ -505,6 +510,7 @@ export default async function WeeklyTrainingPage({ searchParams }: Props) {
               existingLink={userDeliverable?.link ?? null}
               existingNotes={userDeliverable?.notes ?? null}
               existingSubmittedAt={userDeliverable?.submitted_at ?? null}
+              submissionsClosed={isSubmissionsClosed}
             />
 
             {/* Community submissions — visible to all users */}

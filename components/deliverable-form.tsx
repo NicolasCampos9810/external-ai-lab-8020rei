@@ -8,9 +8,10 @@ interface Props {
   existingLink: string | null
   existingNotes: string | null
   existingSubmittedAt: string | null
+  submissionsClosed: boolean
 }
 
-export default function DeliverableForm({ week, existingLink, existingNotes, existingSubmittedAt }: Props) {
+export default function DeliverableForm({ week, existingLink, existingNotes, existingSubmittedAt, submissionsClosed }: Props) {
   const [link, setLink] = useState(existingLink ?? '')
   const [notes, setNotes] = useState(existingNotes ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +34,59 @@ export default function DeliverableForm({ week, existingLink, existingNotes, exi
 
   const hasExisting = !!(existingLink || existingNotes)
   const canSubmit = !!(link.trim() && notes.trim())
+
+  // Submissions closed — show status banner instead of form
+  if (submissionsClosed) {
+    return (
+      <div className={`rounded-xl border p-6 ${
+        hasExisting
+          ? 'bg-green-50 border-green-200'
+          : 'bg-gray-50 border-gray-200'
+      }`}>
+        {hasExisting ? (
+          <>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-green-700 font-semibold">✓ Submitted on time</span>
+              <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-medium">Submissions closed</span>
+            </div>
+            {existingSubmittedAt && (
+              <p className="text-xs text-green-600 mb-3">
+                Submitted {new Date(existingSubmittedAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </p>
+            )}
+            <div className="space-y-2 text-sm text-gray-700">
+              {existingLink && (
+                <a
+                  href={existingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-primary hover:underline break-all"
+                >
+                  {existingLink}
+                </a>
+              )}
+              {existingNotes && (
+                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{existingNotes}</p>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-gray-500 font-semibold">🔐 Submissions closed</span>
+            </div>
+            <p className="text-sm text-gray-500">
+              The deadline for this week has passed. No new submissions are accepted.
+            </p>
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="bg-card rounded-xl border border-border p-6">
