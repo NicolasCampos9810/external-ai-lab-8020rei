@@ -31,7 +31,7 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ users, materials, orphanedUsers, progressData, engagementData }: AdminPanelProps) {
-  const [tab, setTab] = useState<'users' | 'materials' | 'progress' | 'engagement'>('users')
+  const [tab, setTab] = useState<'users' | 'materials' | 'progress'>('users')
 
   return (
     <div>
@@ -66,24 +66,14 @@ export default function AdminPanel({ users, materials, orphanedUsers, progressDa
         >
           Progress
         </button>
-        <button
-          onClick={() => setTab('engagement')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            tab === 'engagement' ? 'bg-white shadow text-gray-900' : 'text-muted hover:text-gray-700'
-          }`}
-        >
-          Engagement
-        </button>
       </div>
 
       {tab === 'users' ? (
         <UsersTable users={users} orphanedUsers={orphanedUsers} />
       ) : tab === 'materials' ? (
         <MaterialsTable materials={materials} />
-      ) : tab === 'progress' ? (
-        <UserProgressView users={users} progressData={progressData} />
       ) : (
-        <EngagementView users={users} progressData={progressData} views={engagementData.views} />
+        <UnifiedProgressView users={users} progressData={progressData} views={engagementData.views} />
       )}
     </div>
   )
@@ -379,173 +369,21 @@ function MaterialsTable({ materials }: { materials: MaterialWithScores[] }) {
   )
 }
 
-// ─── User Progress View ────────────────────────────────────────────────────────
-
-interface WeekStat {
-  week: string
-  total: number
-  reviewed: number
-  hasDeliverable: boolean
-  pct: number
-  complete: boolean
-}
+// ─── Unified Progress View ────────────────────────────────────────────────────
 
 function normalizeTier(tier: string | null | undefined): string {
   if (!tier) return ''
   return tier.toLowerCase().replace(/[\s_-]+/g, '')
 }
 
-function UserProgressView({ users, progressData }: { users: Profile[]; progressData: ProgressRawData }) {
-  const [expandedUser, setExpandedUser] = useState<string | null>(null)
-
-  // Pre-compute required materials per week (shared across all users)
-  const weekRequiredMaterials: Record<string, string[]> = {}
-  for (const week of WEEKS) {
-    weekRequiredMaterials[week] = progressData.materials
-      .filter(m => {
-        if (m.week !== week) return false
-        const t = normalizeTier(m.material_tier)
-        return t === 'mustread' || t === 'core'
-      })
-      .map(m => m.id)
-  }
-
-  // Compute progress for each user
-  const userProgress = users.map(user => {
-    const reviewedIds = new Set(
-      progressData.votes
-        .filter(v => v.user_id === user.id)
-        .map(v => v.material_id)
-    )
-    const deliverableWeeks = new Set(
-      progressData.deliverables
-        .filter(d => d.user_id === user.id)
-        .map(d => d.week)
-    )
-
-    const weekStats = WEEKS
-      .map(week => {
-        const required = weekRequiredMaterials[week]
-        const total = required.length
-        if (total === 0) return null
-        const reviewed = required.filter(id => reviewedIds.has(id)).length
-        const hasDeliverable = deliverableWeeks.has(week)
-        const pct = Math.round((reviewed / total) * 60 + (hasDeliverable ? 40 : 0))
-        const complete = reviewed === total && hasDeliverable
-        return { week, total, reviewed, hasDeliverable, pct, complete }
-      })
-      .filter((s) => s !== null) as WeekStat[]
-
-    const overallPct = weekStats.length > 0
-      ? Math.round(weekStats.reduce((sum, w) => sum + w.pct, 0) / weekStats.length)
-      : 0
-    const weeksComplete = weekStats.filter(w => w.complete).length
-
-    return { user, weekStats, overallPct, weeksComplete }
-  })
-
-  return (
-    <div>
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50 border-b border-border">
-              <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">Member</th>
-              <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">Weeks Done</th>
-              <th className="text-left px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">Overall Progress</th>
-              <th className="px-5 py-3 w-8"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {userProgress.map(({ user, weekStats, overallPct, weeksComplete }) => (
-              <tr key={user.id} className="cursor-pointer" onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}>
-                <td className="px-5 py-3" colSpan={expandedUser === user.id ? undefined : undefined}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium flex-shrink-0">
-                      {(user.full_name || user.email).charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{user.full_name || '—'}</p>
-                      <p className="text-xs text-muted">{user.email}</p>
-                    </div>
-                  </div>
-                  {/* Per-week progress — shown inline when expanded */}
-                  {expandedUser === user.id && weekStats.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-4 mb-1">
-                      {weekStats.map(stat => (
-                        <div
-                          key={stat.week}
-                          className={`rounded-lg border p-3 ${stat.complete ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}
-                        >
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-semibold text-gray-800">{stat.week}</span>
-                            {stat.complete
-                              ? <span className="text-xs text-green-600 font-medium">✓ Done</span>
-                              : <span className="text-xs text-gray-500">{stat.pct}%</span>
-                            }
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1.5">
-                            <div
-                              className={`h-1.5 rounded-full transition-all ${stat.complete ? 'bg-green-500' : 'bg-primary'}`}
-                              style={{ width: `${stat.pct}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span>{stat.reviewed}/{stat.total} reviewed</span>
-                            <span className="text-gray-300">·</span>
-                            <span className={stat.hasDeliverable ? 'text-green-600' : 'text-gray-400'}>
-                              {stat.hasDeliverable ? '✓ deliverable' : 'deliverable pending'}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td className="px-5 py-3 align-top">
-                  <span className="text-sm text-gray-900">{weeksComplete}/{weekStats.length}</span>
-                </td>
-                <td className="px-5 py-3 align-top">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 bg-gray-100 rounded-full h-2 min-w-[6rem]">
-                      <div
-                        className={`h-2 rounded-full transition-all ${overallPct === 100 ? 'bg-green-500' : 'bg-primary'}`}
-                        style={{ width: `${overallPct}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-gray-700 w-8 text-right">{overallPct}%</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3 align-top text-right">
-                  <svg
-                    className={`w-4 h-4 text-muted transition-transform ${expandedUser === user.id ? 'rotate-180' : ''}`}
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {users.length === 0 && (
-          <div className="p-8 text-center text-muted text-sm">No users yet.</div>
-        )}
-      </div>
-    </div>
-  )
+interface WeekIndicators {
+  opened: boolean
+  commented: boolean
+  scored: boolean
+  delivered: boolean
 }
 
-// ─── Engagement View ───────────────────────────────────────────────────────────
-
-const SOURCE_LABEL: Record<string, string> = {
-  weekly: 'Weekly',
-  library: 'Library',
-  dashboard: 'Dashboard',
-  other: 'Direct',
-}
-
-function EngagementView({
+function UnifiedProgressView({
   users,
   progressData,
   views,
@@ -554,164 +392,216 @@ function EngagementView({
   progressData: ProgressRawData
   views: ViewRecord[]
 }) {
-  const [selectedWeek, setSelectedWeek] = useState<string>(WEEKS[0])
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
 
-  // Required materials for the selected week
-  const weekMaterials = progressData.materials.filter(m => m.week === selectedWeek)
-  const requiredMaterials = weekMaterials.filter(m => {
-    const t = normalizeTier(m.material_tier)
-    return t === 'mustread' || t === 'core'
-  })
-  const requiredIds = new Set(requiredMaterials.map(m => m.id))
-
-  // Per-user engagement stats (non-admin users only)
-  const userStats = users
-    .filter(u => u.role !== 'admin')
-    .map(user => {
-      // Views for this user that correspond to a required material in this week
-      const userViews = views.filter(
-        v => v.user_id === user.id && requiredIds.has(v.material_id)
-      )
-      const viewedIds = new Set(userViews.map(v => v.material_id))
-      const viewedCount = viewedIds.size
-
-      // First time they opened any material in this week
-      const firstView = userViews.length > 0
-        ? userViews.reduce((min, v) =>
-            new Date(v.viewed_at) < new Date(min.viewed_at) ? v : min
-          )
-        : null
-
-      // Unique sources used
-      const sources = [...new Set(userViews.map(v => v.source))]
-
-      // Per-material detail: first view timestamp + source for each required material
-      const materialDetail = requiredMaterials.map(mat => {
-        const matViews = userViews
-          .filter(v => v.material_id === mat.id)
-          .sort((a, b) => new Date(a.viewed_at).getTime() - new Date(b.viewed_at).getTime())
-        const first = matViews[0] ?? null
-        return { mat, first }
+  // Only track weeks that have required materials (Must Read / Core)
+  const weekRequiredMaterials: Record<string, string[]> = {}
+  for (const week of WEEKS) {
+    const ids = progressData.materials
+      .filter(m => {
+        if (m.week !== week) return false
+        const t = normalizeTier(m.material_tier)
+        return t === 'mustread' || t === 'core'
       })
+      .map(m => m.id)
+    if (ids.length > 0) weekRequiredMaterials[week] = ids
+  }
+  const activeWeeks = Object.keys(weekRequiredMaterials)
 
-      return { user, viewedCount, total: requiredMaterials.length, firstView, sources, materialDetail }
-    })
-    .sort((a, b) => b.viewedCount - a.viewedCount)
+  // Members only (no admins)
+  const members = users.filter(u => u.role !== 'admin')
 
-  const totalRequired = requiredMaterials.length
+  // Pre-compute per-user indicators for each active week
+  const userProgressMap: Record<string, Record<string, WeekIndicators>> = {}
+
+  members.forEach(user => {
+    const userVotes = progressData.votes.filter(v => v.user_id === user.id)
+    const userScoredIds = new Set(userVotes.map(v => v.material_id))
+    const userCommentedIds = new Set(
+      userVotes.filter(v => v.comment && v.comment.trim() !== '').map(v => v.material_id)
+    )
+    const userDeliverableWeeks = new Set(
+      progressData.deliverables.filter(d => d.user_id === user.id).map(d => d.week)
+    )
+    const userViewedIds = new Set(views.filter(v => v.user_id === user.id).map(v => v.material_id))
+
+    const weekMap: Record<string, WeekIndicators> = {}
+    for (const week of activeWeeks) {
+      const required = weekRequiredMaterials[week]
+      const opened = required.some(id => userViewedIds.has(id))
+      const commented = required.some(id => userCommentedIds.has(id))
+      const scored = required.some(id => userScoredIds.has(id))
+      const delivered = userDeliverableWeeks.has(week)
+      weekMap[week] = { opened, commented, scored, delivered }
+    }
+    userProgressMap[user.id] = weekMap
+  })
+
+  // Aggregate metrics
+  const totalIndicators = members.length * activeWeeks.length * 4
+  let totalChecked = 0
+  const weekEngagement: Record<string, number> = {}
+  for (const week of activeWeeks) weekEngagement[week] = 0
+  let fullyComplete = 0
+
+  members.forEach(user => {
+    let allComplete = true
+    for (const week of activeWeeks) {
+      const ind = userProgressMap[user.id]?.[week]
+      if (!ind) { allComplete = false; continue }
+      const count = [ind.opened, ind.commented, ind.scored, ind.delivered].filter(Boolean).length
+      totalChecked += count
+      weekEngagement[week] += count
+      if (count < 4) allComplete = false
+    }
+    if (allComplete && activeWeeks.length > 0) fullyComplete++
+  })
+
+  const overallPct = totalIndicators > 0 ? Math.round((totalChecked / totalIndicators) * 100) : 0
+  const maxPerWeek = members.length * 4
+
+  // Most active week
+  let mostActiveWeek = activeWeeks[0] || ''
+  let maxEngagement = 0
+  for (const week of activeWeeks) {
+    if (weekEngagement[week] > maxEngagement) {
+      maxEngagement = weekEngagement[week]
+      mostActiveWeek = week
+    }
+  }
+
+  // Per-user overall progress
+  function getUserOverall(userId: string) {
+    let checked = 0
+    for (const week of activeWeeks) {
+      const ind = userProgressMap[userId]?.[week]
+      if (ind) checked += [ind.opened, ind.commented, ind.scored, ind.delivered].filter(Boolean).length
+    }
+    const total = activeWeeks.length * 4
+    return { checked, total, pct: total > 0 ? Math.round((checked / total) * 100) : 0 }
+  }
 
   return (
-    <div>
-      {/* Week selector */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {WEEKS.map(week => (
-          <button
-            key={week}
-            onClick={() => { setSelectedWeek(week); setExpandedUser(null) }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              selectedWeek === week
-                ? 'bg-primary text-white shadow-sm'
-                : 'bg-gray-100 text-muted hover:text-gray-700'
-            }`}
-          >
-            {week}
-          </button>
-        ))}
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-card rounded-xl border border-border p-5">
+          <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1">Overall Progress</p>
+          <p className="text-2xl font-bold text-gray-900">{overallPct}%</p>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1">Most Active Week</p>
+          <p className="text-2xl font-bold text-gray-900">{maxEngagement > 0 ? mostActiveWeek : '—'}</p>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1">Fully Complete</p>
+          <p className="text-2xl font-bold text-gray-900">{fullyComplete} <span className="text-sm font-normal text-muted">of {members.length}</span></p>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1">Active Weeks</p>
+          <p className="text-2xl font-bold text-gray-900">{activeWeeks.length}</p>
+        </div>
       </div>
 
-      {totalRequired === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-8 text-center text-muted text-sm">
-          No required materials (Must Read / Core) assigned to {selectedWeek} yet.
-        </div>
-      ) : (
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          {/* Header row */}
-          <div className="bg-gray-50 border-b border-border px-5 py-3 flex items-center gap-2">
-            <span className="text-xs font-medium text-muted uppercase tracking-wider flex-1">
-              Member
-            </span>
-            <span className="text-xs font-medium text-muted uppercase tracking-wider w-36 text-center">
-              Required viewed
-            </span>
-            <span className="text-xs font-medium text-muted uppercase tracking-wider w-28 hidden sm:block">
-              First opened
-            </span>
-            <span className="text-xs font-medium text-muted uppercase tracking-wider w-24 hidden md:block">
-              Via
-            </span>
-            <span className="w-5" />
+      {/* Week Engagement Chart */}
+      <div className="bg-card rounded-xl border border-border p-5">
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">Week Engagement</h3>
+        <p className="text-xs text-muted mb-4">Indicators completed per week across all members (opened + commented + scored + delivered)</p>
+        {activeWeeks.length === 0 ? (
+          <p className="text-sm text-muted">No weeks with required materials yet.</p>
+        ) : (
+          <div className="space-y-2.5">
+            {activeWeeks.map(week => {
+              const eng = weekEngagement[week]
+              const pct = maxPerWeek > 0 ? (eng / maxPerWeek) * 100 : 0
+              const isTop = week === mostActiveWeek && maxEngagement > 0
+              return (
+                <div key={week} className="flex items-center gap-3">
+                  <span className={`w-16 text-xs font-medium ${isTop ? 'text-amber-600' : 'text-muted'}`}>{week}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${isTop ? 'bg-amber-400' : 'bg-primary/70'}`}
+                      style={{ width: `${Math.max(pct, 0)}%` }}
+                    />
+                    <span className={`absolute inset-0 flex items-center px-3 text-xs font-medium ${pct > 35 ? 'text-white' : 'text-gray-500'}`}>
+                      {eng}/{maxPerWeek}{isTop ? ' — Most Active' : ''}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+        )}
+      </div>
 
-          {userStats.length === 0 && (
-            <div className="p-8 text-center text-muted text-sm">No members to show.</div>
-          )}
+      {/* Individual Progress */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Individual Progress</h3>
+          <p className="text-xs text-muted">Click a member to see their weekly breakdown</p>
+        </div>
 
-          {userStats.map(({ user, viewedCount, total, firstView, sources, materialDetail }) => {
-            const allViewed = total > 0 && viewedCount === total
-            const noneViewed = viewedCount === 0
+        {members.length === 0 && (
+          <div className="p-8 text-center text-muted text-sm">No members yet.</div>
+        )}
+
+        <div className="divide-y divide-border">
+          {members.map(user => {
+            const overall = getUserOverall(user.id)
             const isExpanded = expandedUser === user.id
 
             return (
-              <div key={user.id} className="border-b border-border last:border-0">
-                {/* Main row */}
+              <div key={user.id}>
+                {/* Collapsed row */}
                 <div
-                  className="flex items-center gap-2 px-5 py-3 cursor-pointer hover:bg-gray-50/50"
+                  className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-gray-50/50 transition-colors"
                   onClick={() => setExpandedUser(isExpanded ? null : user.id)}
                 >
-                  {/* User */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium flex-shrink-0">
-                      {(user.full_name || user.email).charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {user.full_name || '—'}
-                      </p>
-                      <p className="text-xs text-muted truncate">{user.email}</p>
-                    </div>
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium flex-shrink-0">
+                    {(user.full_name || user.email).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{user.full_name || '—'}</p>
+                    <p className="text-xs text-muted truncate">{user.email}</p>
                   </div>
 
-                  {/* Progress pill */}
-                  <div className="w-36 flex items-center gap-2">
-                    <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                  {/* Mini week dots */}
+                  <div className="hidden sm:flex items-center gap-1">
+                    {activeWeeks.map(week => {
+                      const ind = userProgressMap[user.id]?.[week]
+                      const count = ind ? [ind.opened, ind.commented, ind.scored, ind.delivered].filter(Boolean).length : 0
+                      const bg = count === 4
+                        ? 'bg-green-500'
+                        : count >= 2
+                          ? 'bg-amber-400'
+                          : count >= 1
+                            ? 'bg-blue-400'
+                            : 'bg-gray-200'
+                      return (
+                        <div
+                          key={week}
+                          className={`w-5 h-5 rounded ${bg} flex items-center justify-center`}
+                          title={`${week}: ${count}/4`}
+                        >
+                          <span className="text-[9px] font-bold text-white">{count}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="flex items-center gap-2 w-28">
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
                       <div
-                        className={`h-1.5 rounded-full transition-all ${
-                          allViewed ? 'bg-green-500' : noneViewed ? 'bg-gray-300' : 'bg-amber-400'
+                        className={`h-2 rounded-full transition-all ${
+                          overall.pct === 100 ? 'bg-green-500' : overall.pct > 0 ? 'bg-primary' : 'bg-gray-200'
                         }`}
-                        style={{ width: total > 0 ? `${(viewedCount / total) * 100}%` : '0%' }}
+                        style={{ width: `${overall.pct}%` }}
                       />
                     </div>
-                    <span className={`text-xs font-semibold w-10 text-right ${
-                      allViewed ? 'text-green-600' : noneViewed ? 'text-gray-400' : 'text-amber-600'
-                    }`}>
-                      {viewedCount}/{total}
-                    </span>
+                    <span className="text-xs font-medium text-gray-600 w-8 text-right">{overall.pct}%</span>
                   </div>
 
-                  {/* First opened */}
-                  <div className="w-28 hidden sm:block">
-                    <span className="text-xs text-muted">
-                      {firstView
-                        ? new Date(firstView.viewed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                        : <span className="text-gray-300">—</span>
-                      }
-                    </span>
-                  </div>
-
-                  {/* Source badges */}
-                  <div className="w-24 hidden md:flex flex-wrap gap-1">
-                    {sources.length > 0
-                      ? sources.map(s => (
-                          <span key={s} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                            {SOURCE_LABEL[s] ?? s}
-                          </span>
-                        ))
-                      : <span className="text-xs text-gray-300">—</span>
-                    }
-                  </div>
-
-                  {/* Chevron */}
                   <svg
                     className={`w-4 h-4 text-muted flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor"
@@ -720,54 +610,34 @@ function EngagementView({
                   </svg>
                 </div>
 
-                {/* Expanded: per-material breakdown */}
+                {/* Expanded: per-week indicators */}
                 {isExpanded && (
                   <div className="bg-gray-50 border-t border-border px-5 py-4">
-                    <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
-                      Required materials — {selectedWeek}
-                    </p>
-                    <div className="space-y-2">
-                      {materialDetail.map(({ mat, first }) => (
-                        <div key={mat.id} className="flex items-start gap-3">
-                          {/* Viewed indicator */}
-                          <div className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            first ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-400'
-                          }`}>
-                            {first ? (
-                              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            ) : (
-                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400 block" />
-                            )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                      {activeWeeks.map(week => {
+                        const ind = userProgressMap[user.id]?.[week] || { opened: false, commented: false, scored: false, delivered: false }
+                        const count = [ind.opened, ind.commented, ind.scored, ind.delivered].filter(Boolean).length
+                        const allDone = count === 4
+                        return (
+                          <div
+                            key={week}
+                            className={`rounded-lg border p-3 ${allDone ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2.5">
+                              <span className="text-xs font-semibold text-gray-800">{week}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                allDone ? 'bg-green-100 text-green-700' : count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'
+                              }`}>{count}/4</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <IndicatorRow label="Opened" active={ind.opened} activeColor="bg-blue-50 text-blue-700" />
+                              <IndicatorRow label="Commented" active={ind.commented} activeColor="bg-amber-50 text-amber-700" />
+                              <IndicatorRow label="Scored" active={ind.scored} activeColor="bg-purple-50 text-purple-700" />
+                              <IndicatorRow label="Delivered" active={ind.delivered} activeColor="bg-green-50 text-green-700" />
+                            </div>
                           </div>
-
-                          {/* Title + meta */}
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm truncate ${first ? 'text-gray-900' : 'text-gray-400'}`}>
-                              {mat.title ?? mat.id}
-                            </p>
-                            {first && (
-                              <p className="text-xs text-muted mt-0.5">
-                                First opened{' '}
-                                {new Date(first.viewed_at).toLocaleDateString('en-US', {
-                                  month: 'short', day: 'numeric', year: 'numeric',
-                                })}{' '}
-                                · via {SOURCE_LABEL[first.source] ?? first.source}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Tier badge */}
-                          <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
-                            normalizeTier(mat.material_tier) === 'mustread'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {normalizeTier(mat.material_tier) === 'mustread' ? 'Must Read' : 'Core'}
-                          </span>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -775,7 +645,22 @@ function EngagementView({
             )
           })}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function IndicatorRow({ label, active, activeColor }: { label: string; active: boolean; activeColor: string }) {
+  return (
+    <div className={`flex items-center gap-2 px-2 py-1 rounded text-xs ${active ? activeColor : 'bg-gray-50 text-gray-400'}`}>
+      {active ? (
+        <svg className="w-3 h-3 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+      ) : (
+        <span className="w-3 h-3 rounded-full border border-gray-300 flex-shrink-0" />
       )}
+      <span>{label}</span>
     </div>
   )
 }
