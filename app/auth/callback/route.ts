@@ -13,6 +13,8 @@ export async function GET(request: Request) {
 
   if (code) {
     const cookieStore = await cookies()
+    const allCookies = cookieStore.getAll()
+    console.log('[auth/callback] cookies present:', allCookies.map(c => c.name).join(', '))
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
