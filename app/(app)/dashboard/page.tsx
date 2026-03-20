@@ -119,27 +119,56 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-5xl">
-      {/* ─── Header with inline stats ─────────────────────────────────────── */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">
+      {/* ─── Hero Banner ──────────────────────────────────────────────────── */}
+      <div className="mb-6 rounded-2xl bg-gradient-to-br from-primary via-indigo-600 to-purple-700 p-6 text-white shadow-lg">
+        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200 mb-1">8020REI · AI Training Lab</p>
+        <h1 className="text-2xl font-bold leading-tight">
           Welcome back, {profile?.full_name?.split(' ')[0] || 'there'}
         </h1>
-        <p className="text-sm text-muted mt-1 max-w-2xl">
-          8020REI&apos;s AI Training Lab — built to help you research, understand, and lead through the new AI wave. Track your progress, explore curated materials, and contribute to the community.
+        <p className="text-sm text-indigo-100 mt-1.5 max-w-xl leading-relaxed">
+          Research, understand, and lead through the AI wave — curated materials, structured weeks, and a community sharpening their edge together.
         </p>
-        <div className="flex flex-wrap items-center gap-3 mt-3">
-          <span className="inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary font-medium px-2.5 py-1 rounded-full">
-            <span className="font-bold">{overallPct}%</span> progress
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs bg-green-50 text-green-700 font-medium px-2.5 py-1 rounded-full">
-            <span className="font-bold">{totalReviewed}/{totalRequired}</span> reviewed
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 font-medium px-2.5 py-1 rounded-full">
-            <span className="font-bold">{completedWeeks}/{weekProgress.length}</span> weeks done
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-600 font-medium px-2.5 py-1 rounded-full">
-            <span className="font-bold">{totalMaterials || 0}</span> total materials
-          </span>
+
+        {/* Stats row */}
+        <div className="flex flex-wrap gap-3 mt-5">
+          <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2.5">
+            <div className="relative w-10 h-10">
+              <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="3.5" />
+                <circle cx="20" cy="20" r="16" fill="none" stroke="white" strokeWidth="3.5"
+                  strokeDasharray={`${(overallPct / 100) * 100.5} 100.5`} strokeLinecap="round" />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">{overallPct}%</span>
+            </div>
+            <div>
+              <p className="text-[10px] text-indigo-200 uppercase tracking-wide font-medium">Overall</p>
+              <p className="text-sm font-bold text-white">Progress</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2.5">
+            <div className="text-2xl font-black text-white leading-none">{totalReviewed}</div>
+            <div>
+              <p className="text-[10px] text-indigo-200 uppercase tracking-wide font-medium">of {totalRequired}</p>
+              <p className="text-sm font-bold text-white">Reviewed</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2.5">
+            <div className="text-2xl font-black text-white leading-none">{completedWeeks}</div>
+            <div>
+              <p className="text-[10px] text-indigo-200 uppercase tracking-wide font-medium">of {weekProgress.length}</p>
+              <p className="text-sm font-bold text-white">Weeks Done</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2.5">
+            <div className="text-2xl font-black text-white leading-none">{totalMaterials || 0}</div>
+            <div>
+              <p className="text-[10px] text-indigo-200 uppercase tracking-wide font-medium">Total</p>
+              <p className="text-sm font-bold text-white">Materials</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -240,12 +269,15 @@ export default async function DashboardPage() {
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Community Highlights This Week</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Top Article This Week */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-orange-600 mb-1">🔥 Top Article This Week</p>
+          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-100 p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-base">🔥</span>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-orange-600">Top This Week</p>
+            </div>
             {topArticleThisWeek ? (
               <>
                 <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{topArticleThisWeek.title}</p>
-                <p className="text-xs text-muted mt-1">{weeklyVoteCounts[topArticleThisWeek.id] || 0} review{weeklyVoteCounts[topArticleThisWeek.id] !== 1 ? 's' : ''} this week</p>
+                <p className="text-xs text-orange-500 mt-1.5 font-medium">{weeklyVoteCounts[topArticleThisWeek.id] || 0} review{weeklyVoteCounts[topArticleThisWeek.id] !== 1 ? 's' : ''} this week</p>
               </>
             ) : (
               <p className="text-sm text-muted">No activity yet this week</p>
@@ -253,12 +285,15 @@ export default async function DashboardPage() {
           </div>
 
           {/* Highest Rated */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-yellow-600 mb-1">⭐ Highest Rated</p>
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border border-yellow-100 p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-base">⭐</span>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-yellow-600">Highest Rated</p>
+            </div>
             {topRatedHighlight && topRatedHighlight[0] ? (
               <>
                 <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{topRatedHighlight[0].title}</p>
-                <p className="text-xs text-muted mt-1">{topRatedHighlight[0].avg_overall?.toFixed(1)} avg score · {topRatedHighlight[0].vote_count} review{topRatedHighlight[0].vote_count !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-yellow-600 mt-1.5 font-medium">{topRatedHighlight[0].avg_overall?.toFixed(1)} avg · {topRatedHighlight[0].vote_count} review{topRatedHighlight[0].vote_count !== 1 ? 's' : ''}</p>
               </>
             ) : (
               <p className="text-sm text-muted">No ratings yet</p>
@@ -266,12 +301,15 @@ export default async function DashboardPage() {
           </div>
 
           {/* Most Reviewed */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600 mb-1">💬 Most Reviewed</p>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-base">💬</span>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Most Reviewed</p>
+            </div>
             {mostReviewedHighlight && mostReviewedHighlight[0] ? (
               <>
                 <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{mostReviewedHighlight[0].title}</p>
-                <p className="text-xs text-muted mt-1">{mostReviewedHighlight[0].vote_count} review{mostReviewedHighlight[0].vote_count !== 1 ? 's' : ''} total</p>
+                <p className="text-xs text-blue-500 mt-1.5 font-medium">{mostReviewedHighlight[0].vote_count} review{mostReviewedHighlight[0].vote_count !== 1 ? 's' : ''} total</p>
               </>
             ) : (
               <p className="text-sm text-muted">No reviews yet</p>
