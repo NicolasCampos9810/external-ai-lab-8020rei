@@ -104,14 +104,15 @@ export async function uploadMaterials(materials: ParsedMaterial[]) {
 
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize)
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('materials')
-      .insert(batch)
+      .upsert(batch, { onConflict: 'link', ignoreDuplicates: true })
+      .select('id')
 
     if (insertError) {
       return { error: `Failed to insert batch ${Math.floor(i / batchSize) + 1}: ${insertError.message}` }
     }
-    totalInserted += batch.length
+    totalInserted += inserted?.length ?? batch.length
   }
 
   revalidatePath('/library')
